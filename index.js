@@ -9,6 +9,7 @@ const axios = require('axios');
 const { cleanFilename } = require('./utils/helpers');
 const { searchVideo, getVideoInfo, getVideoTitle, downloadMedia } = require('./utils/youtubeService');
 const { recognizeAudio } = require('./utils/shazamService');
+const { getText } = require('./utils/localization');
 
 // GLOBAL ERROR HANDLERS
 process.on('uncaughtException', (error) => {
@@ -59,44 +60,51 @@ function startBot() {
     fs.ensureDirSync(DOWNLOADS_DIR);
 
     // Helpers
+    const userSettings = new Map(); // { chatId: { lang: 'uz' } }
+
+    const getLang = (chatId) => (userSettings.get(chatId) || {}).lang || 'uz';
+    const setLang = (chatId, lang) => {
+        const settings = userSettings.get(chatId) || {};
+        settings.lang = lang;
+        userSettings.set(chatId, settings);
+    };
+
     const setUserState = (chatId, state) => userStates.set(chatId, state);
     const getUserState = (chatId) => userStates.get(chatId) || STATES.MAIN;
 
-    const MAIN_MENU = {
+    const getMainMenu = (lang) => ({
         reply_markup: {
             keyboard: [
-                ['🎵 Musiqa topish', '🎬 Video yuklash'],
-                ['🎧 Audio yuklash', '❓ Yordam']
+                [getText(lang, 'menu_music'), getText(lang, 'menu_video')],
+                [getText(lang, 'menu_audio'), getText(lang, 'menu_help')],
+                [getText(lang, 'menu_lang')]
             ],
             resize_keyboard: true
         }
-    };
+    });
 
-    const BACK_MENU = {
+    const getBackMenu = (lang) => ({
         reply_markup: {
-            keyboard: [['🏠 Bosh sahifa']],
+            keyboard: [[getText(lang, 'menu_back')]],
             resize_keyboard: true
         }
-    };
+    });
+
+    // Removed static MAIN_MENU and BACK_MENU in favor of dynamic functions
 
     // 1. Handle /start
     bot.onText(/\/start/, (msg) => {
         const chatId = msg.chat.id;
         setUserState(chatId, STATES.MAIN);
 
-        const welcomeText =
-            `🌟 **Assalomu alaykum! TEZ BOT ga xush kelibsiz!**
-
-🤖 Men orqali siz:
-• YouTube, Instagram, TikTok dan video yuklashingiz 📥
-• Musiqa va audio kitoblar topishingiz 🎧
-• Videolarni audio formatga o'girishingiz mumkin.
-
-👇 **Davom etish uchun menyudan tanlang:**`;
-
-        bot.sendMessage(chatId, welcomeText, {
-            parse_mode: 'Markdown',
-            ...MAIN_MENU
+        // Offer Language Selection
+        bot.sendMessage(chatId, "🇺🇿 Iltimos, tilni tanlang:\n🇺🇿 Илтимос, тилни танланг:\n🇷🇺 Пожалуйста, выберите язык:\n🇬🇧 Please select a language:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Кирилл)", callback_data: 'lang_uz_cyrl' }],
+                    [{ text: "🇷🇺 Русский", callback_data: 'lang_ru' }, { text: "🇬🇧 English", callback_data: 'lang_en' }]
+                ]
+            }
         });
     });
 
@@ -107,56 +115,59 @@ function startBot() {
 
         if (!text || text.startsWith('/')) return;
 
-        // Global "Home" Command
-        if (text === '🏠 Bosh sahifa') {
+        if (text === getText(getLang(chatId), 'menu_back') || text === '🏠 Bosh sahifa') {
             setUserState(chatId, STATES.MAIN);
-            bot.sendMessage(chatId, '🏠 **Bosh sahifa**', MAIN_MENU);
+            const lang = getLang(chatId);
+            bot.sendMessage(chatId, `🏠 **${getText(lang, 'menu_back')}**`, getMainMenu(lang));
             return;
         }
 
         const currentState = getUserState(chatId);
+        const lang = getLang(chatId);
 
         // --- STATE: MAIN ---
         if (currentState === STATES.MAIN) {
-            switch (text) {
-                case '🎵 Musiqa topish':
-                    setUserState(chatId, STATES.WAITING_MUSIC);
-                    bot.sendMessage(chatId, '🔍 **Musiqa nomini yoki ijrochini yozing.**\n\nMisol: *Eminem Lose Yourself*', {
-                        parse_mode: 'Markdown',
-                        ...BACK_MENU
-                    });
-                    break;
-                case '🎬 Video yuklash':
-                    setUserState(chatId, STATES.WAITING_VIDEO);
-                    bot.sendMessage(chatId, '📥 **Video havolasini (link) yuboring:**\n(YouTube, Instagram, TikTok)', {
-                        parse_mode: 'Markdown',
-                        ...BACK_MENU
-                    });
-                    break;
-                case '🎧 Audio yuklash':
-                    setUserState(chatId, STATES.WAITING_AUDIO);
-                    bot.sendMessage(chatId, '🔗 **Audio ajratib olish uchun video havolasini yuboring:**', {
-                        parse_mode: 'Markdown',
-                        ...BACK_MENU
-                    });
-                    break;
-                case '❓ Yordam':
-                    bot.sendMessage(chatId, '🤖 **Yordam**\n\nBot ishlamay qolsa yoki savollar bo\'lsa, admin bilan bog\'laning.', MAIN_MENU);
-                    break;
-                default:
-                    // If user sends a link directly in MAIN menu, try to auto-detect
-                    if (text.match(/https?:\/\//)) {
-                        bot.sendMessage(chatId, '⚠️ Iltimos, avval menyudan **"🎬 Video yuklash"** yoki **"🎧 Audio yuklash"** ni tanlang.', MAIN_MENU);
-                    } else {
-                        bot.sendMessage(chatId, '⚠️ Iltimos, menyudan biror bo\'limni tanlang.', MAIN_MENU);
+            // Check against all possible localized strings for buttons
+            // or just rely on what the user currently sees. 
+            // Better: Check strictly against the current lang's text for correctness.
+
+            if (text === getText(lang, 'menu_music')) {
+                setUserState(chatId, STATES.WAITING_MUSIC);
+                bot.sendMessage(chatId, getText(lang, 'prompt_music'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
+
+            } else if (text === getText(lang, 'menu_video')) {
+                setUserState(chatId, STATES.WAITING_VIDEO);
+                bot.sendMessage(chatId, getText(lang, 'prompt_video'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
+
+            } else if (text === getText(lang, 'menu_audio')) {
+                setUserState(chatId, STATES.WAITING_AUDIO);
+                bot.sendMessage(chatId, getText(lang, 'prompt_audio'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
+
+            } else if (text === getText(lang, 'menu_help')) {
+                bot.sendMessage(chatId, '🤖 @Tez_Bot', getMainMenu(lang));
+
+            } else if (text === getText(lang, 'menu_lang')) {
+                bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Krill)", callback_data: 'lang_uz_cyrl' }],
+                            [{ text: "🇷🇺 Русский", callback_data: 'lang_ru' }, { text: "🇬🇧 English", callback_data: 'lang_en' }]
+                        ]
                     }
+                });
+            } else {
+                if (text.match(/https?:\/\//)) {
+                    bot.sendMessage(chatId, getText(lang, 'invalid_link'), getMainMenu(lang));
+                } else {
+                    bot.sendMessage(chatId, getText(lang, 'error'), getMainMenu(lang));
+                }
             }
             return;
         }
 
         // --- STATE: WAITING_MUSIC (Shazam/Search context) ---
         if (currentState === STATES.WAITING_MUSIC) {
-            bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${text}" ...`, { disable_notification: true });
+            bot.sendMessage(chatId, getText(lang, 'searching'), { disable_notification: true });
 
             try {
                 // Non-blocking search
@@ -164,7 +175,7 @@ function startBot() {
                     const entries = output.entries || (Array.isArray(output) ? output : [output]);
 
                     if (!entries || entries.length === 0) {
-                        bot.sendMessage(chatId, '❌ Hech narsa topilmadi. Boshqa nom bilan urinib ko\'ring.', BACK_MENU);
+                        bot.sendMessage(chatId, getText(lang, 'not_found'), getBackMenu(lang));
                         return;
                     }
 
@@ -175,19 +186,16 @@ function startBot() {
                         searchKeyboard.push([{ text: `${index + 1}. ${title}`, callback_data: `sel_${videoId}` }]);
                     });
 
-                    bot.sendMessage(chatId, `🎶 **Natijalar:**\nKeraklisini tanlang:`, {
+                    bot.sendMessage(chatId, `🎶 **Natijalar:**`, {
                         parse_mode: 'Markdown',
                         reply_markup: { inline_keyboard: searchKeyboard }
                     });
-                    // Note: We stay in WAITING_MUSIC state so they can search again seamlessly, OR we could reset?
-                    // User requested "Done! What next?" -> "Search Again | Menu".
-                    // Let's implement that in the callback handler.
                 }).catch(err => {
                     console.error(err);
-                    bot.sendMessage(chatId, '❌ Qidirishda xatolik.', BACK_MENU);
+                    bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
                 });
             } catch (error) {
-                bot.sendMessage(chatId, '❌ Server xatosi.', BACK_MENU);
+                bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
             }
             return;
         }
@@ -195,11 +203,11 @@ function startBot() {
         // --- STATE: WAITING_VIDEO ---
         if (currentState === STATES.WAITING_VIDEO) {
             if (!text.match(/https?:\/\//)) {
-                bot.sendMessage(chatId, '❌ **Noto\'g\'ri havola.**\nIltimos, to\'g\'ri video havolasini yuboring.', BACK_MENU);
+                bot.sendMessage(chatId, getText(lang, 'invalid_link'), getBackMenu(lang));
                 return;
             }
 
-            bot.sendMessage(chatId, '🔎 Ma\'lumotlar olinmoqda... ⏳');
+            bot.sendMessage(chatId, getText(lang, 'downloading'));
             processUrl(chatId, text, 'video'); // Helper to show resolution options
             return;
         }
@@ -207,11 +215,11 @@ function startBot() {
         // --- STATE: WAITING_AUDIO ---
         if (currentState === STATES.WAITING_AUDIO) {
             if (!text.match(/https?:\/\//)) {
-                bot.sendMessage(chatId, '❌ **Noto\'g\'ri havola.**\nIltimos, to\'g\'ri video havolasini yuboring.', BACK_MENU);
+                bot.sendMessage(chatId, getText(lang, 'invalid_link'), getBackMenu(lang));
                 return;
             }
 
-            bot.sendMessage(chatId, '🔎 Ma\'lumotlar olinmoqda... ⏳');
+            bot.sendMessage(chatId, getText(lang, 'downloading'));
 
             // Direct Audio Download Flow
             // For audio, we might default to MP3 best quality or give options?
@@ -221,14 +229,12 @@ function startBot() {
 
             getVideoTitle(text).then(title => {
                 const keyboard = [
-                    [{ text: '🎵 MP3 (Eng yaxshi)', callback_data: `dl_audio_mp3_${text}`.substring(0, 64) }], // Store URL in callback might be too long. 
-                    // Better: Store URL in memory (userRequests) keyed by ChatID.
+                    [{ text: '🎵 MP3 (Eng yaxshi)', callback_data: `dl_audio_mp3_${text}`.substring(0, 64) }],
                 ];
 
-                // Store the URL for this user Context
                 userRequests.set(chatId, { url: text, title: title || 'Audio' });
 
-                bot.sendMessage(chatId, `🎧 **${title || 'Video'}**\n\nFormatni tanlang:`, {
+                bot.sendMessage(chatId, getText(lang, 'select_format'), {
                     parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [
@@ -238,7 +244,7 @@ function startBot() {
                     }
                 });
             }).catch(() => {
-                bot.sendMessage(chatId, '❌ Video ma\'lumotlarini olib bo\'lmadi.', BACK_MENU);
+                bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
             });
             return;
         }
@@ -274,19 +280,18 @@ function startBot() {
                 buttons.push({ text: `📹 ${res.label}`, callback_data: `video_${res.val}` });
             });
 
-            // Add Audio Option too? User clicked "Video Download", but maybe they changed mind?
-            buttons.push({ text: '🎵 Audio (MP3)', callback_data: 'target_mp3' });
-
             const keyboard = [];
             for (let i = 0; i < buttons.length; i += 2) keyboard.push(buttons.slice(i, i + 2));
+            const lang = getLang(chatId);
 
-            bot.sendMessage(chatId, `📹 **${title}**\n\nSifatni tanlang:`, {
+            bot.sendMessage(chatId, getText(lang, 'select_quality'), {
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: keyboard }
             });
         } catch (error) {
             console.error(error);
-            bot.sendMessage(chatId, '❌ Xatolik yuz berdi.', BACK_MENU);
+            const lang = getLang(chatId);
+            bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
         }
     }
 
@@ -298,12 +303,26 @@ function startBot() {
         // Always answer immediately to stop the button loading animation
         try { await bot.answerCallbackQuery(query.id); } catch (e) { }
 
+
+        const lang = getLang(chatId);
+
+        // --- LANGUAGE SELECTION ---
+        if (data.startsWith('lang_')) {
+            const selectedLang = data.replace('lang_', '');
+            setLang(chatId, selectedLang);
+            bot.sendMessage(chatId, getText(selectedLang, 'welcome'), {
+                parse_mode: 'Markdown',
+                ...getMainMenu(selectedLang)
+            });
+            return;
+        }
+
         // --- SEARCH SELECTION ---
         if (data.startsWith('sel_')) {
             const videoId = data.replace('sel_', '');
             const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-            bot.editMessageText('🎧 Yuklanmoqda...', { chatId, messageId: query.message.message_id });
+            bot.editMessageText(getText(lang, 'downloading'), { chatId, messageId: query.message.message_id });
 
             // Start "uploading audio" action loop
             const stopAction = sendActionLoop(chatId, 'upload_voice');
@@ -312,10 +331,10 @@ function startBot() {
             handleDownload(chatId, videoUrl, 'audio', { outputPath: 'temp' })
                 .then(() => {
                     // Send "Done" menu
-                    bot.sendMessage(chatId, '✅ **Tayyor! Yana nima qilamiz?**', {
+                    bot.sendMessage(chatId, getText(lang, 'done'), {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔁 Yana qidirish', callback_data: 'reset_music' }],
+                                [{ text: getText(lang, 'search_again'), callback_data: 'reset_music' }],
                             ]
                         }
                     });
@@ -329,7 +348,7 @@ function startBot() {
         // --- RESET MUSIC ---
         if (data === 'reset_music') {
             setUserState(chatId, STATES.WAITING_MUSIC);
-            bot.sendMessage(chatId, '🔍 **Musiqa nomini yozing:**', BACK_MENU);
+            bot.sendMessage(chatId, getText(lang, 'prompt_music'), getBackMenu(lang));
             return;
         }
 
@@ -339,14 +358,14 @@ function startBot() {
 
             // Inject into search flow
             setUserState(chatId, STATES.WAITING_MUSIC);
-            bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${queryText}" ...`);
+            bot.sendMessage(chatId, getText(lang, 'searching'));
 
             const stopAction = sendActionLoop(chatId, 'typing'); // Search might take a moment
 
             searchVideo(queryText, 5).then(output => {
                 const entries = output.entries || (Array.isArray(output) ? output : [output]);
                 if (!entries || entries.length === 0) {
-                    bot.sendMessage(chatId, '❌ Hech narsa topilmadi.', BACK_MENU);
+                    bot.sendMessage(chatId, getText(lang, 'not_found'), getBackMenu(lang));
                     return;
                 }
                 const searchKeyboard = [];
@@ -370,7 +389,7 @@ function startBot() {
         const safeTitle = cleanFilename(title);
 
         bot.deleteMessage(chatId, query.message.message_id);
-        bot.sendMessage(chatId, '⏳ Yuklanmoqda... Bir oz kuting.');
+        bot.sendMessage(chatId, getText(lang, 'downloading'));
 
         // Determine options
         let type = 'video';
@@ -396,6 +415,7 @@ function startBot() {
     });
 
     async function handleDownload(chatId, url, type, options, title) {
+        const lang = getLang(chatId);
         try {
             const filePath = await downloadMedia(url, type, options);
 
@@ -404,7 +424,7 @@ function startBot() {
             const sizeMB = stats.size / (1024 * 1024);
 
             if (sizeMB > 49.5) {
-                bot.sendMessage(chatId, `⚠️ Fayl hajmi juda katta (${sizeMB.toFixed(2)} MB). Telegram orqali yuborib bo'lmaydi.`);
+                bot.sendMessage(chatId, getText(lang, 'file_too_large'));
                 fs.remove(filePath);
                 return;
             }
@@ -420,11 +440,11 @@ function startBot() {
             await fs.remove(filePath);
 
             // After download, show Home button
-            bot.sendMessage(chatId, '✅ **Yuklandi!**', BACK_MENU);
+            bot.sendMessage(chatId, getText(lang, 'done'), getBackMenu(lang));
 
         } catch (error) {
             console.error('Download Error:', error);
-            bot.sendMessage(chatId, `❌ Yuklashda xatolik yuz berdi.`, BACK_MENU);
+            bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
         }
     }
 
@@ -434,10 +454,11 @@ function startBot() {
 
     async function handleAudioMessage(msg) {
         const chatId = msg.chat.id;
+        const lang = getLang(chatId);
         const fileId = msg.voice ? msg.voice.file_id : msg.audio.file_id;
 
         bot.sendChatAction(chatId, 'record_voice');
-        const statusMsg = await bot.sendMessage(chatId, '🎶 Musiqa aniqlanmoqda... ⏳');
+        const statusMsg = await bot.sendMessage(chatId, getText(lang, 'searching'));
 
         try {
             const fileLink = await bot.getFileLink(fileId);
@@ -448,7 +469,7 @@ function startBot() {
 
             if (track) {
                 const { title, artist, album, year } = track;
-                const caption = `🎵 **Topildi!**\n\n🎤 **Artist:** ${artist}\n🎼 **Musiqa:** ${title}\n💿 **Albom:** ${album || '-'}\n📅 **Yil:** ${year || '-'}`;
+                const caption = `${getText(lang, 'shazam_found')}\n\n🎤 **Artist:** ${artist}\n🎼 **Oldadi:** ${title}\n💿 **Album:** ${album || '-'}\n📅 **Yil:** ${year || '-'}`;
 
                 await bot.sendMessage(chatId, caption, {
                     parse_mode: 'Markdown',
@@ -457,12 +478,12 @@ function startBot() {
                     }
                 });
             } else {
-                bot.sendMessage(chatId, '❌ Kechirasiz, bu musiqani aniqlay olmadim.', BACK_MENU);
+                bot.sendMessage(chatId, getText(lang, 'shazam_not_found'), getBackMenu(lang));
             }
         } catch (error) {
             console.error('Shazam Error:', error);
             await bot.deleteMessage(chatId, statusMsg.message_id);
-            bot.sendMessage(chatId, '❌ Xatolik yuz berdi.', BACK_MENU);
+            bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
         }
     }
 }
