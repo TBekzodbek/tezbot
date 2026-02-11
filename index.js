@@ -234,6 +234,41 @@ function startBot() {
 
             bot.sendMessage(chatId, '✅ Tanlandi. Ma\'lumotlar olinmoqda...');
             await processUrl(chatId, videoUrl);
+        } else if (data.startsWith('search_')) {
+            const queryText = data.replace('search_', '');
+            bot.answerCallbackQuery(query.id);
+            bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${queryText}" ... ⏳`);
+
+            // Re-use the logic from message handler -> simplified call
+            // We need to trigger the search logic. 
+            // Since the search logic is inside the message handler, let's extract it or mock a message?
+            // Better: Refactor search logic or just copy-paste for now (or call a shared function).
+            // For simplicity/speed in this context, I'll essentially replicate the search call.
+
+            try {
+                const output = await searchVideo(queryText, 5);
+                const entries = output.entries || (Array.isArray(output) ? output : [output]);
+
+                if (!entries || entries.length === 0) {
+                    bot.sendMessage(chatId, '❌ Hech narsa topilmadi.');
+                    return;
+                }
+
+                const searchKeyboard = [];
+                entries.forEach((entry, index) => {
+                    const title = entry.title.substring(0, 50);
+                    const videoId = entry.id;
+                    searchKeyboard.push([{ text: `${index + 1}. ${title}`, callback_data: `sel_${videoId}` }]);
+                });
+
+                bot.sendMessage(chatId, `✅ **Natijalar:**\nKeraklisini tanlang:`, {
+                    parse_mode: 'Markdown',
+                    reply_markup: { inline_keyboard: searchKeyboard }
+                });
+            } catch (error) {
+                console.error('Search Error (Callback):', error);
+                bot.sendMessage(chatId, '❌ Qidirishda xatolik yuz berdi.');
+            }
         }
     });
 
@@ -270,7 +305,17 @@ function startBot() {
                 await bot.deleteMessage(chatId, statusMsg.message_id);
 
                 let caption = `🎵 **Topildi!**\n\n🎤 **Artist:** ${artist}\n🎼 **Musiqa:** ${title}\n💿 **Albom:** ${album}\n📅 **Yil:** ${year}`;
-                await bot.sendMessage(chatId, caption, { parse_mode: 'Markdown' });
+
+                // Add Download Button
+                const downloadKeyboard = [
+                    [{ text: '📥 Yuklab olish', callback_data: `search_${artist} - ${title}`.substring(0, 64) }]
+                ];
+                // Note: Telegram callback_data limit is 64 bytes. We truncate to be safe.
+
+                await bot.sendMessage(chatId, caption, {
+                    parse_mode: 'Markdown',
+                    reply_markup: { inline_keyboard: downloadKeyboard }
+                });
 
             } else {
                 await bot.deleteMessage(chatId, statusMsg.message_id);

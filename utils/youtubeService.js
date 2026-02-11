@@ -1,11 +1,22 @@
 const youtubedl = require('youtube-dl-exec');
 const path = require('path');
+const NodeCache = require('node-cache');
+
+// Initialize Cache (TTL: 1 hour for search/info, 10 mins for titles)
+const cache = new NodeCache({ stdTTL: 3600 });
 
 // Configuration constants - easier to test/mock if exported or passed in
 const YOUTUBE_DL_BINARY = path.join(__dirname, '../yt-dlp.exe');
-const FFMPEG_LOCATION = path.join(__dirname, '../ffmpeg.exe');
+const FFMPEG_LOCATION = path.join(__dirname, '../bin/ffmpeg.exe');
 
 async function searchVideo(query, limit = 5) {
+    const cacheKey = `search:${query}:${limit}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        console.log('✅ Serving search from cache:', query);
+        return cached;
+    }
+
     try {
         const output = await youtubedl(`ytsearch${limit}:${query}`, {
             dumpSingleJson: true,
@@ -16,6 +27,8 @@ async function searchVideo(query, limit = 5) {
         }, {
             youtubeDlBinary: YOUTUBE_DL_BINARY
         });
+
+        cache.set(cacheKey, output);
         return output;
     } catch (e) {
         throw new Error(`Search failed: ${e.message}`);
@@ -23,6 +36,10 @@ async function searchVideo(query, limit = 5) {
 }
 
 async function getVideoTitle(url) {
+    const cacheKey = `title:${url}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
     try {
         const titlePromise = youtubedl(url, {
             getTitle: true,
@@ -38,7 +55,10 @@ async function getVideoTitle(url) {
         // Fast Timeout (2s) - title should be instant
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
         const title = await Promise.race([titlePromise, timeoutPromise]);
-        return title.trim();
+        const trimmedTitle = title.trim();
+
+        cache.set(cacheKey, trimmedTitle, 600); // 10 min TTL for potential transient titles
+        return trimmedTitle;
     } catch (e) {
         // Fallback or rethrow
         return null;
@@ -46,6 +66,11 @@ async function getVideoTitle(url) {
 }
 
 async function getVideoInfo(url, retries = 2) {
+    // Info might be large, but useful to cache for short term if user clicks multiple buttons
+    const cacheKey = `info:${url}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
     for (let i = 0; i <= retries; i++) {
         try {
             const infoPromise = youtubedl(url, {
@@ -62,7 +87,10 @@ async function getVideoInfo(url, retries = 2) {
 
             // Timeout wrapper (5s)
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
-            return await Promise.race([infoPromise, timeoutPromise]);
+            const info = await Promise.race([infoPromise, timeoutPromise]);
+
+            cache.set(cacheKey, info, 300); // 5 min TTL
+            return info;
         } catch (e) {
             if (i === retries) throw e; // Throw on last attempt
             console.log(`Video Info Retry ${i + 1}/${retries}...`);
@@ -77,7 +105,12 @@ async function downloadMedia(url, type, options = {}) {
         output: outputPath,
         noPlaylist: true,
         ffmpegLocation: FFMPEG_LOCATION,
-        noWarnings: true
+        noWarnings: true,
+        noColors: true,
+        noProgress: true,
+        // Performance flags
+        concurrentFragments: 4, // Download in 4 parts
+        resizeBuffer: true,     // Optimize buffer
     };
 
     if (type === 'audio') {
@@ -108,17 +141,21 @@ async function downloadMedia(url, type, options = {}) {
         // youtube-dl-exec returns the stdout string directly by default
         const stdout = (typeof result === 'string') ? result : (result.stdout || '');
 
+        // Strip ANSI codes (colors, progress bars) to ensure regex works
+        // eslint-disable-next-line no-control-regex
+        const cleanStdout = stdout.replace(/\x1B\[\d+;?\d*m/g, '');
+
         // Log for debugging
         console.log('yt-dlp result type:', typeof result);
-        console.log('yt-dlp stdout:', stdout);
+        console.log('yt-dlp stdout (cleaned):', cleanStdout);
 
         // Regex to find "Destination: <path>" or "Merging formats into "<path>"" or "already downloaded"
         // yt-dlp might output multiple destinations (temp file, then final file after merge/extract)
 
         // Find all matches for Destination or Merging
         // catch: [download] Destination: ... or [ExtractAudio] Destination: ... or [Merger] Merging formats into "..."
-        const destMatches = [...stdout.matchAll(/(?:Destination:|Merging formats into ")(.+?)(?:"|$)/g)];
-        const alreadyMatches = [...stdout.matchAll(/\[download\]\s+(.+)\s+has already been downloaded/g)];
+        const destMatches = [...cleanStdout.matchAll(/(?:Destination:|Merging formats into ")(.+?)(?:"|$)/g)];
+        const alreadyMatches = [...cleanStdout.matchAll(/\[download\]\s+(.+)\s+has already been downloaded/g)];
 
         let potentialPaths = [];
 
@@ -153,13 +190,18 @@ async function downloadMedia(url, type, options = {}) {
 
         console.log('⚠️ Parsed paths did not exist, trying fallback...');
 
-
-
         // Fallback: Check if the template replaced path exists
-        const probableExt = type === 'audio' ? '.mp3' : '.mp4';
-        const fallbackPath = outputPath.replace('.%(ext)s', probableExt);
+        // We check a few common extensions because yt-dlp might have merged into mkv or webm if mp4 failed
+        const base = outputPath.replace('.%(ext)s', '');
+        const extensions = type === 'audio' ? ['.mp3', '.m4a'] : ['.mp4', '.mkv', '.webm'];
 
-        if (require('fs-extra').existsSync(fallbackPath)) return fallbackPath;
+        for (const ext of extensions) {
+            const fallbackPath = base + ext;
+            if (require('fs-extra').existsSync(fallbackPath)) {
+                console.log('✅ Found file via fallback strategy:', fallbackPath);
+                return fallbackPath;
+            }
+        }
 
         // If we really can't find it
         throw new Error('Could not determine downloaded file path from output.');
