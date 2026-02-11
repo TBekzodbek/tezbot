@@ -1,0 +1,8 @@
+node_modules
+downloads
+.env
+.git
+*.log
+test_*.js
+benchmark.js
+coverage
