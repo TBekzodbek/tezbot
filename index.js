@@ -98,15 +98,19 @@ function startBot() {
         const chatId = msg.chat.id;
         setUserState(chatId, STATES.MAIN);
 
-        // Offer Language Selection
-        bot.sendMessage(chatId, "🇺🇿 Iltimos, tilni tanlang:\n🇺🇿 Илтимос, тилни танланг:\n🇷🇺 Пожалуйста, выберите язык:\n🇬🇧 Please select a language:", {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Кирилл)", callback_data: 'lang_uz_cyrl' }],
-                    [{ text: "🇷🇺 Русский", callback_data: 'lang_ru' }, { text: "🇬🇧 English", callback_data: 'lang_en' }]
-                ]
-            }
-        });
+        // Send Welcome Message first
+        bot.sendMessage(chatId, "👋 **Welcome to Tez Bot!**\n\n🇺🇿 Xush kelibsiz!\n🇷🇺 Добро пожаловать!", { parse_mode: 'Markdown' })
+            .then(() => {
+                // Offer Language Selection
+                bot.sendMessage(chatId, "🇺🇿 Iltimos, tilni tanlang:\n🇺🇿 Илтимос, тилни танланг:\n🇷🇺 Пожалуйста, выберите язык:\n🇬🇧 Please select a language:", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Кирилл)", callback_data: 'lang_uz_cyrl' }],
+                            [{ text: "🇷🇺 Русский", callback_data: 'lang_ru' }, { text: "🇬🇧 English", callback_data: 'lang_en' }]
+                        ]
+                    }
+                });
+            });
     });
 
 
