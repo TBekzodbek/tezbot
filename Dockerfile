@@ -12,6 +12,8 @@ WORKDIR /app
 
 # Copy package.json and install dependencies
 COPY package*.json ./
+# Copy scripts because postinstall needs them
+COPY scripts/ ./scripts/
 RUN npm install
 
 # Copy the rest of the application code
