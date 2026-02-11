@@ -244,8 +244,16 @@ function startBot() {
         }
     });
 
-    // 3. Helper: Process URL for Video
+    // 3. Helpers: Process URL & Action Loop
     const userRequests = new Map(); // Store temporary data for callbacks
+
+    const sendActionLoop = (chatId, action) => {
+        bot.sendChatAction(chatId, action).catch(() => { });
+        const interval = setInterval(() => {
+            bot.sendChatAction(chatId, action).catch(() => { });
+        }, 4000);
+        return () => clearInterval(interval);
+    };
 
     async function processUrl(chatId, url, typeContext) {
         try {
@@ -287,17 +295,18 @@ function startBot() {
         const chatId = query.message.chat.id;
         const data = query.data;
 
+        // Always answer immediately to stop the button loading animation
+        try { await bot.answerCallbackQuery(query.id); } catch (e) { }
+
         // --- SEARCH SELECTION ---
         if (data.startsWith('sel_')) {
             const videoId = data.replace('sel_', '');
             const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-            // Immediately treat this as a "Music" request since they came from "Find Music"
-            // But user might want video.
-            // Requirement Step 6: Bot Sends Audio -> Done.
-
-            bot.answerCallbackQuery(query.id);
             bot.editMessageText('🎧 Yuklanmoqda...', { chatId, messageId: query.message.message_id });
+
+            // Start "uploading audio" action loop
+            const stopAction = sendActionLoop(chatId, 'upload_voice');
 
             // Auto-download Audio for music search
             handleDownload(chatId, videoUrl, 'audio', { outputPath: 'temp' })
@@ -307,17 +316,18 @@ function startBot() {
                         reply_markup: {
                             inline_keyboard: [
                                 [{ text: '🔁 Yana qidirish', callback_data: 'reset_music' }],
-                                // Home button is already in ReplyMarkup
                             ]
                         }
                     });
+                })
+                .finally(() => {
+                    stopAction(); // Stop the action loop
                 });
             return;
         }
 
         // --- RESET MUSIC ---
         if (data === 'reset_music') {
-            bot.answerCallbackQuery(query.id);
             setUserState(chatId, STATES.WAITING_MUSIC);
             bot.sendMessage(chatId, '🔍 **Musiqa nomini yozing:**', BACK_MENU);
             return;
@@ -326,13 +336,14 @@ function startBot() {
         // --- SEARCH FROM SHAZAM ---
         if (data.startsWith('search_')) {
             const queryText = data.replace('search_', '');
-            bot.answerCallbackQuery(query.id);
+
             // Inject into search flow
             setUserState(chatId, STATES.WAITING_MUSIC);
-            // Simulate message? Or just call logic
             bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${queryText}" ...`);
+
+            const stopAction = sendActionLoop(chatId, 'typing'); // Search might take a moment
+
             searchVideo(queryText, 5).then(output => {
-                // ... same logic as above ...
                 const entries = output.entries || (Array.isArray(output) ? output : [output]);
                 if (!entries || entries.length === 0) {
                     bot.sendMessage(chatId, '❌ Hech narsa topilmadi.', BACK_MENU);
@@ -343,7 +354,7 @@ function startBot() {
                     searchKeyboard.push([{ text: `${index + 1}. ${entry.title.substring(0, 50)}`, callback_data: `sel_${entry.id}` }]);
                 });
                 bot.sendMessage(chatId, `🎶 **Natijalar:**`, { reply_markup: { inline_keyboard: searchKeyboard } });
-            });
+            }).finally(() => stopAction());
             return;
         }
 
@@ -351,15 +362,13 @@ function startBot() {
         // --- DOWNLOAD SELECTION ---
         const reqData = userRequests.get(chatId);
         if (!reqData) {
-            // Try to recover if we have data in callback? No, too long.
-            bot.answerCallbackQuery(query.id, { text: 'Eskirgan so\'rov.' });
+            // No answerCallbackQuery needed here as it was done at top
             return;
         }
 
         const { url, title } = reqData;
         const safeTitle = cleanFilename(title);
 
-        bot.answerCallbackQuery(query.id);
         bot.deleteMessage(chatId, query.message.message_id);
         bot.sendMessage(chatId, '⏳ Yuklanmoqda... Bir oz kuting.');
 
@@ -369,18 +378,21 @@ function startBot() {
 
         if (data === 'target_mp3') {
             type = 'audio';
-            // Audio default mp3
         } else if (data === 'target_m4a') {
             type = 'audio';
-            // We need to implement m4a specific flag if needed, usually 'bestaudio[ext=m4a]'
-            // For now youtubeService defaults to mp3 for 'audio' type.
-            // Let's assume MP3 for now to match current service capabilities.
         } else if (data.startsWith('video_')) {
             type = 'video';
             options.height = data.split('_')[1];
         }
 
-        await handleDownload(chatId, url, type, options, title);
+        const actionType = type === 'audio' ? 'upload_voice' : 'upload_video';
+        const stopAction = sendActionLoop(chatId, actionType);
+
+        try {
+            await handleDownload(chatId, url, type, options, title);
+        } finally {
+            stopAction();
+        }
     });
 
     async function handleDownload(chatId, url, type, options, title) {
