@@ -7,7 +7,7 @@ const cache = new NodeCache({ stdTTL: 3600 });
 
 // Configuration constants - easier to test/mock if exported or passed in
 const YOUTUBE_DL_BINARY = path.join(__dirname, '../yt-dlp.exe');
-const FFMPEG_LOCATION = path.join(__dirname, '../bin/ffmpeg.exe');
+const FFMPEG_LOCATION = path.join(__dirname, '../bin');
 
 async function searchVideo(query, limit = 5) {
     const cacheKey = `search:${query}:${limit}`;
