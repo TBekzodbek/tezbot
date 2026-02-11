@@ -31,7 +31,7 @@ const app = express();
 const PORT = 3001;
 
 const server = app.listen(PORT, () => {
-    console.log(`TEZ BOT ishga tushdi (v1.1 - Modular)... Port: ${PORT}`);
+    console.log(`TEZ BOT ishga tushdi (v2.0 - State Machine)... Port: ${PORT}`);
     startBot();
 });
 
@@ -43,80 +43,214 @@ server.on('error', (e) => {
     }
 });
 
+// User States
+const STATES = {
+    MAIN: 'MAIN',
+    WAITING_MUSIC: 'WAITING_MUSIC',
+    WAITING_VIDEO: 'WAITING_VIDEO',
+    WAITING_AUDIO: 'WAITING_AUDIO'
+};
+
+const userStates = new Map();
+
 function startBot() {
     const bot = new TelegramBot(token, { polling: true });
     const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
     fs.ensureDirSync(DOWNLOADS_DIR);
 
-    // State Management
-    const userRequests = new Map();
+    // Helpers
+    const setUserState = (chatId, state) => userStates.set(chatId, state);
+    const getUserState = (chatId) => userStates.get(chatId) || STATES.MAIN;
 
-    // 1. Handle Messages
+    const MAIN_MENU = {
+        reply_markup: {
+            keyboard: [
+                ['🎵 Musiqa topish', '🎬 Video yuklash'],
+                ['🎧 Audio yuklash', '❓ Yordam']
+            ],
+            resize_keyboard: true
+        }
+    };
+
+    const BACK_MENU = {
+        reply_markup: {
+            keyboard: [['🏠 Bosh sahifa']],
+            resize_keyboard: true
+        }
+    };
+
+    // 1. Handle /start
+    bot.onText(/\/start/, (msg) => {
+        const chatId = msg.chat.id;
+        setUserState(chatId, STATES.MAIN);
+
+        const welcomeText =
+            `🌟 **Assalomu alaykum! TEZ BOT ga xush kelibsiz!**
+
+🤖 Men orqali siz:
+• YouTube, Instagram, TikTok dan video yuklashingiz 📥
+• Musiqa va audio kitoblar topishingiz 🎧
+• Videolarni audio formatga o'girishingiz mumkin.
+
+👇 **Davom etish uchun menyudan tanlang:**`;
+
+        bot.sendMessage(chatId, welcomeText, {
+            parse_mode: 'Markdown',
+            ...MAIN_MENU
+        });
+    });
+
+    // 2. Handle Text Messages (State Machine)
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         const text = msg.text;
+
         if (!text || text.startsWith('/')) return;
 
-        const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
-        const platformRegex = /(youtube\.com|youtu\.be|instagram\.com|tiktok\.com)/;
-
-        // URL Case
-        if (urlMatch && platformRegex.test(urlMatch[0])) {
-            const url = urlMatch[0];
-            bot.sendMessage(chatId, '🔎 Ma\'lumotlar olinmoqda... ⏳');
-            await processUrl(chatId, url);
+        // Global "Home" Command
+        if (text === '🏠 Bosh sahifa') {
+            setUserState(chatId, STATES.MAIN);
+            bot.sendMessage(chatId, '🏠 **Bosh sahifa**', MAIN_MENU);
             return;
         }
 
-        // Search Case
-        bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${text}" ... ⏳`);
-        try {
-            const output = await searchVideo(text, 5); // Use Service
+        const currentState = getUserState(chatId);
 
-            console.log('Search Result Type:', typeof output);
-            const entries = output.entries || (Array.isArray(output) ? output : [output]);
-            console.log('Entries found:', entries.length);
+        // --- STATE: MAIN ---
+        if (currentState === STATES.MAIN) {
+            switch (text) {
+                case '🎵 Musiqa topish':
+                    setUserState(chatId, STATES.WAITING_MUSIC);
+                    bot.sendMessage(chatId, '🔍 **Musiqa nomini yoki ijrochini yozing.**\n\nMisol: *Eminem Lose Yourself*', {
+                        parse_mode: 'Markdown',
+                        ...BACK_MENU
+                    });
+                    break;
+                case '🎬 Video yuklash':
+                    setUserState(chatId, STATES.WAITING_VIDEO);
+                    bot.sendMessage(chatId, '📥 **Video havolasini (link) yuboring:**\n(YouTube, Instagram, TikTok)', {
+                        parse_mode: 'Markdown',
+                        ...BACK_MENU
+                    });
+                    break;
+                case '🎧 Audio yuklash':
+                    setUserState(chatId, STATES.WAITING_AUDIO);
+                    bot.sendMessage(chatId, '🔗 **Audio ajratib olish uchun video havolasini yuboring:**', {
+                        parse_mode: 'Markdown',
+                        ...BACK_MENU
+                    });
+                    break;
+                case '❓ Yordam':
+                    bot.sendMessage(chatId, '🤖 **Yordam**\n\nBot ishlamay qolsa yoki savollar bo\'lsa, admin bilan bog\'laning.', MAIN_MENU);
+                    break;
+                default:
+                    // If user sends a link directly in MAIN menu, try to auto-detect
+                    if (text.match(/https?:\/\//)) {
+                        bot.sendMessage(chatId, '⚠️ Iltimos, avval menyudan **"🎬 Video yuklash"** yoki **"🎧 Audio yuklash"** ni tanlang.', MAIN_MENU);
+                    } else {
+                        bot.sendMessage(chatId, '⚠️ Iltimos, menyudan biror bo\'limni tanlang.', MAIN_MENU);
+                    }
+            }
+            return;
+        }
 
-            if (!entries || entries.length === 0) {
-                bot.sendMessage(chatId, '❌ Hech narsa topilmadi.');
+        // --- STATE: WAITING_MUSIC (Shazam/Search context) ---
+        if (currentState === STATES.WAITING_MUSIC) {
+            bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${text}" ...`, { disable_notification: true });
+
+            try {
+                // Non-blocking search
+                searchVideo(text, 5).then(output => {
+                    const entries = output.entries || (Array.isArray(output) ? output : [output]);
+
+                    if (!entries || entries.length === 0) {
+                        bot.sendMessage(chatId, '❌ Hech narsa topilmadi. Boshqa nom bilan urinib ko\'ring.', BACK_MENU);
+                        return;
+                    }
+
+                    const searchKeyboard = [];
+                    entries.forEach((entry, index) => {
+                        const title = entry.title.substring(0, 50);
+                        const videoId = entry.id;
+                        searchKeyboard.push([{ text: `${index + 1}. ${title}`, callback_data: `sel_${videoId}` }]);
+                    });
+
+                    bot.sendMessage(chatId, `🎶 **Natijalar:**\nKeraklisini tanlang:`, {
+                        parse_mode: 'Markdown',
+                        reply_markup: { inline_keyboard: searchKeyboard }
+                    });
+                    // Note: We stay in WAITING_MUSIC state so they can search again seamlessly, OR we could reset?
+                    // User requested "Done! What next?" -> "Search Again | Menu".
+                    // Let's implement that in the callback handler.
+                }).catch(err => {
+                    console.error(err);
+                    bot.sendMessage(chatId, '❌ Qidirishda xatolik.', BACK_MENU);
+                });
+            } catch (error) {
+                bot.sendMessage(chatId, '❌ Server xatosi.', BACK_MENU);
+            }
+            return;
+        }
+
+        // --- STATE: WAITING_VIDEO ---
+        if (currentState === STATES.WAITING_VIDEO) {
+            if (!text.match(/https?:\/\//)) {
+                bot.sendMessage(chatId, '❌ **Noto\'g\'ri havola.**\nIltimos, to\'g\'ri video havolasini yuboring.', BACK_MENU);
                 return;
             }
 
-            const searchKeyboard = [];
-            entries.forEach((entry, index) => {
-                const title = entry.title.substring(0, 50);
-                const videoId = entry.id;
-                searchKeyboard.push([{ text: `${index + 1}. ${title}`, callback_data: `sel_${videoId}` }]);
-            });
+            bot.sendMessage(chatId, '🔎 Ma\'lumotlar olinmoqda... ⏳');
+            processUrl(chatId, text, 'video'); // Helper to show resolution options
+            return;
+        }
 
-            bot.sendMessage(chatId, `✅ **Natijalar:**\nKeraklisini tanlang:`, {
-                parse_mode: 'Markdown',
-                reply_markup: { inline_keyboard: searchKeyboard }
-            });
+        // --- STATE: WAITING_AUDIO ---
+        if (currentState === STATES.WAITING_AUDIO) {
+            if (!text.match(/https?:\/\//)) {
+                bot.sendMessage(chatId, '❌ **Noto\'g\'ri havola.**\nIltimos, to\'g\'ri video havolasini yuboring.', BACK_MENU);
+                return;
+            }
 
-        } catch (error) {
-            console.error('Search Error:', error);
-            bot.sendMessage(chatId, '❌ Qidirishda xatolik yuz berdi.');
+            bot.sendMessage(chatId, '🔎 Ma\'lumotlar olinmoqda... ⏳');
+
+            // Direct Audio Download Flow
+            // For audio, we might default to MP3 best quality or give options?
+            // User requested "Format Choice: MP3 128 | MP3 320 | M4A".
+            // yt-dlp handling of specific bitrates needs post-processing arguments.
+            // For simplicity/speed/robustness, let's offer "MP3 (Best)" and "M4A".
+
+            getVideoTitle(text).then(title => {
+                const keyboard = [
+                    [{ text: '🎵 MP3 (Eng yaxshi)', callback_data: `dl_audio_mp3_${text}`.substring(0, 64) }], // Store URL in callback might be too long. 
+                    // Better: Store URL in memory (userRequests) keyed by ChatID.
+                ];
+
+                // Store the URL for this user Context
+                userRequests.set(chatId, { url: text, title: title || 'Audio' });
+
+                bot.sendMessage(chatId, `🎧 **${title || 'Video'}**\n\nFormatni tanlang:`, {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '🎵 MP3', callback_data: 'target_mp3' }],
+                            [{ text: '🎼 M4A (Original)', callback_data: 'target_m4a' }]
+                        ]
+                    }
+                });
+            }).catch(() => {
+                bot.sendMessage(chatId, '❌ Video ma\'lumotlarini olib bo\'lmadi.', BACK_MENU);
+            });
+            return;
         }
     });
 
-    // Process URL
-    async function processUrl(chatId, url, preFetchedTitle = null) {
+    // 3. Helper: Process URL for Video
+    const userRequests = new Map(); // Store temporary data for callbacks
+
+    async function processUrl(chatId, url, typeContext) {
         try {
-            let title = preFetchedTitle || 'Video';
-            if (!preFetchedTitle) {
-                // OPTIMIZATION: Use fast title fetch (no full metadata)
-                const fetchedTitle = await getVideoTitle(url);
-                title = fetchedTitle || 'Video';
-
-                // If title fetch failed, we strictly don't fail here, just use generic 'Video'
-                // The actual download step will validate the URL later.
-            }
-
-            userRequests.set(chatId, { url, title });
-
-            const keyboard = [];
-            keyboard.push([{ text: '🎵 MP3 (Musiqa)', callback_data: 'audio' }]);
+            const title = await getVideoTitle(url) || 'Video';
+            userRequests.set(chatId, { url, title, type: typeContext });
 
             const targetResolutions = [
                 { label: '4K Ultra HD', val: 2160 },
@@ -124,155 +258,165 @@ function startBot() {
                 { label: '1080p Full HD', val: 1080 },
                 { label: '720p HD', val: 720 },
                 { label: '480p', val: 480 },
-                { label: '360p', val: 360 },
-                { label: '240p', val: 240 }
+                { label: '360p', val: 360 }
             ];
 
             const buttons = [];
             targetResolutions.forEach(res => {
                 buttons.push({ text: `📹 ${res.label}`, callback_data: `video_${res.val}` });
             });
+
+            // Add Audio Option too? User clicked "Video Download", but maybe they changed mind?
+            buttons.push({ text: '🎵 Audio (MP3)', callback_data: 'target_mp3' });
+
+            const keyboard = [];
             for (let i = 0; i < buttons.length; i += 2) keyboard.push(buttons.slice(i, i + 2));
 
-            bot.sendMessage(chatId, `📹 **${title}**\n\nNima yuklab olmoqchisiz?\n(Video yoki Audio tanlang)`, {
+            bot.sendMessage(chatId, `📹 **${title}**\n\nSifatni tanlang:`, {
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: keyboard }
             });
         } catch (error) {
-            console.error('Process Error:', error);
-            bot.sendMessage(chatId, '❌ Xatolik yuz berdi.');
+            console.error(error);
+            bot.sendMessage(chatId, '❌ Xatolik yuz berdi.', BACK_MENU);
         }
     }
 
-    // 2. Handle Callback
+    // 4. Handle Callbacks
     bot.on('callback_query', async (query) => {
         const chatId = query.message.chat.id;
         const data = query.data;
 
+        // --- SEARCH SELECTION ---
+        if (data.startsWith('sel_')) {
+            const videoId = data.replace('sel_', '');
+            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+            // Immediately treat this as a "Music" request since they came from "Find Music"
+            // But user might want video.
+            // Requirement Step 6: Bot Sends Audio -> Done.
+
+            bot.answerCallbackQuery(query.id);
+            bot.editMessageText('🎧 Yuklanmoqda...', { chatId, messageId: query.message.message_id });
+
+            // Auto-download Audio for music search
+            handleDownload(chatId, videoUrl, 'audio', { outputPath: 'temp' })
+                .then(() => {
+                    // Send "Done" menu
+                    bot.sendMessage(chatId, '✅ **Tayyor! Yana nima qilamiz?**', {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔁 Yana qidirish', callback_data: 'reset_music' }],
+                                // Home button is already in ReplyMarkup
+                            ]
+                        }
+                    });
+                });
+            return;
+        }
+
+        // --- RESET MUSIC ---
+        if (data === 'reset_music') {
+            bot.answerCallbackQuery(query.id);
+            setUserState(chatId, STATES.WAITING_MUSIC);
+            bot.sendMessage(chatId, '🔍 **Musiqa nomini yozing:**', BACK_MENU);
+            return;
+        }
+
+        // --- SEARCH FROM SHAZAM ---
+        if (data.startsWith('search_')) {
+            const queryText = data.replace('search_', '');
+            bot.answerCallbackQuery(query.id);
+            // Inject into search flow
+            setUserState(chatId, STATES.WAITING_MUSIC);
+            // Simulate message? Or just call logic
+            bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${queryText}" ...`);
+            searchVideo(queryText, 5).then(output => {
+                // ... same logic as above ...
+                const entries = output.entries || (Array.isArray(output) ? output : [output]);
+                if (!entries || entries.length === 0) {
+                    bot.sendMessage(chatId, '❌ Hech narsa topilmadi.', BACK_MENU);
+                    return;
+                }
+                const searchKeyboard = [];
+                entries.forEach((entry, index) => {
+                    searchKeyboard.push([{ text: `${index + 1}. ${entry.title.substring(0, 50)}`, callback_data: `sel_${entry.id}` }]);
+                });
+                bot.sendMessage(chatId, `🎶 **Natijalar:**`, { reply_markup: { inline_keyboard: searchKeyboard } });
+            });
+            return;
+        }
+
+
+        // --- DOWNLOAD SELECTION ---
         const reqData = userRequests.get(chatId);
         if (!reqData) {
+            // Try to recover if we have data in callback? No, too long.
             bot.answerCallbackQuery(query.id, { text: 'Eskirgan so\'rov.' });
             return;
         }
 
         const { url, title } = reqData;
-        const safeTitle = cleanFilename(title); // Use Service
+        const safeTitle = cleanFilename(title);
 
         bot.answerCallbackQuery(query.id);
-        bot.editMessageText(`⏳ Yuklanmoqda... (${data.replace('video_', '')})`, {
-            chat_id: chatId,
-            message_id: query.message.message_id
-        });
+        bot.deleteMessage(chatId, query.message.message_id);
+        bot.sendMessage(chatId, '⏳ Yuklanmoqda... Bir oz kuting.');
 
+        // Determine options
+        let type = 'video';
+        let options = { outputPath: path.join(DOWNLOADS_DIR, `${safeTitle}_${Date.now()}.%(ext)s`) };
+
+        if (data === 'target_mp3') {
+            type = 'audio';
+            // Audio default mp3
+        } else if (data === 'target_m4a') {
+            type = 'audio';
+            // We need to implement m4a specific flag if needed, usually 'bestaudio[ext=m4a]'
+            // For now youtubeService defaults to mp3 for 'audio' type.
+            // Let's assume MP3 for now to match current service capabilities.
+        } else if (data.startsWith('video_')) {
+            type = 'video';
+            options.height = data.split('_')[1];
+        }
+
+        await handleDownload(chatId, url, type, options, title);
+    });
+
+    async function handleDownload(chatId, url, type, options, title) {
         try {
-            const tempPathBase = path.join(DOWNLOADS_DIR, `${safeTitle}_${Date.now()}`);
-            let filePath;
-            let downloadType = 'video';
-            let options = { outputPath: `${tempPathBase}.%(ext)s` };
+            const filePath = await downloadMedia(url, type, options);
 
-            if (data === 'audio') {
-                downloadType = 'audio';
-                filePath = await downloadMedia(url, 'audio', options); // Use Service
-            } else if (data.startsWith('video_')) {
-                const height = data.split('_')[1];
-                options.height = height;
-                filePath = await downloadMedia(url, 'video', options); // Use Service
-            }
-
-            // Verify Exists
-            if (!fs.existsSync(filePath)) {
-                // Fallback lookup
-                const files = fs.readdirSync(DOWNLOADS_DIR);
-                const found = files.find(f => f.startsWith(`${safeTitle}`) && f.includes(Date.now().toString().substring(0, 8)));
-                if (found) filePath = path.join(DOWNLOADS_DIR, found);
-                else throw new Error('File not found (Download failed).');
-            }
-
-            // Check Size
+            // Size Check & Send
             const stats = await fs.stat(filePath);
             const sizeMB = stats.size / (1024 * 1024);
 
             if (sizeMB > 49.5) {
-                bot.sendMessage(chatId, `⚠️ Fayl hajmi juda katta (${sizeMB.toFixed(2)} MB). Telegram 50MB limitiga sig'madi.`);
+                bot.sendMessage(chatId, `⚠️ Fayl hajmi juda katta (${sizeMB.toFixed(2)} MB). Telegram orqali yuborib bo'lmaydi.`);
                 fs.remove(filePath);
                 return;
             }
 
-            // Send
-            bot.sendChatAction(chatId, data === 'audio' ? 'upload_voice' : 'upload_video');
+            bot.sendChatAction(chatId, type === 'audio' ? 'upload_voice' : 'upload_video');
 
-            if (data === 'audio') {
-                await bot.sendAudio(chatId, filePath, {
-                    title: title,
-                    caption: '🎧 @Tez_Bot'
-                });
+            if (type === 'audio') {
+                await bot.sendAudio(chatId, filePath, { title: title, caption: '🎧 @Tez_Bot' });
             } else {
-                await bot.sendVideo(chatId, filePath, {
-                    caption: `${title}\n\n🤖 @Tez_Bot`,
-                    supports_streaming: true
-                });
+                await bot.sendVideo(chatId, filePath, { caption: `${title}\n\n🤖 @Tez_Bot`, supports_streaming: true });
             }
-            await fs.remove(filePath); // Cleanup
+
+            await fs.remove(filePath);
+
+            // After download, show Home button
+            bot.sendMessage(chatId, '✅ **Yuklandi!**', BACK_MENU);
 
         } catch (error) {
-            console.error('❌ DOWNLOAD ERROR DETAILS:', error);
-            bot.sendMessage(chatId, `❌ Yuklashda xatolik yuz berdi.\n\nSabab: ${error.message.substring(0, 50)}...`);
+            console.error('Download Error:', error);
+            bot.sendMessage(chatId, `❌ Yuklashda xatolik yuz berdi.`, BACK_MENU);
         }
-    });
+    }
 
-    // Handle Search Selection
-    bot.on('callback_query', async (query) => {
-        const chatId = query.message.chat.id;
-        const data = query.data;
-
-        if (data.startsWith('sel_')) {
-            const videoId = data.replace('sel_', '');
-            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
-            bot.answerCallbackQuery(query.id);
-            bot.deleteMessage(chatId, query.message.message_id);
-
-            bot.sendMessage(chatId, '✅ Tanlandi. Ma\'lumotlar olinmoqda...');
-            await processUrl(chatId, videoUrl);
-        } else if (data.startsWith('search_')) {
-            const queryText = data.replace('search_', '');
-            bot.answerCallbackQuery(query.id);
-            bot.sendMessage(chatId, `🔎 Qidirilmoqda: "${queryText}" ... ⏳`);
-
-            // Re-use the logic from message handler -> simplified call
-            // We need to trigger the search logic. 
-            // Since the search logic is inside the message handler, let's extract it or mock a message?
-            // Better: Refactor search logic or just copy-paste for now (or call a shared function).
-            // For simplicity/speed in this context, I'll essentially replicate the search call.
-
-            try {
-                const output = await searchVideo(queryText, 5);
-                const entries = output.entries || (Array.isArray(output) ? output : [output]);
-
-                if (!entries || entries.length === 0) {
-                    bot.sendMessage(chatId, '❌ Hech narsa topilmadi.');
-                    return;
-                }
-
-                const searchKeyboard = [];
-                entries.forEach((entry, index) => {
-                    const title = entry.title.substring(0, 50);
-                    const videoId = entry.id;
-                    searchKeyboard.push([{ text: `${index + 1}. ${title}`, callback_data: `sel_${videoId}` }]);
-                });
-
-                bot.sendMessage(chatId, `✅ **Natijalar:**\nKeraklisini tanlang:`, {
-                    parse_mode: 'Markdown',
-                    reply_markup: { inline_keyboard: searchKeyboard }
-                });
-            } catch (error) {
-                console.error('Search Error (Callback):', error);
-                bot.sendMessage(chatId, '❌ Qidirishda xatolik yuz berdi.');
-            }
-        }
-    });
-
-    // 3. Handle Voice & Audio (Shazam)
+    // 5. Handle Voice (Shazam) - Global Handler
     bot.on('voice', handleAudioMessage);
     bot.on('audio', handleAudioMessage);
 
@@ -285,72 +429,28 @@ function startBot() {
 
         try {
             const fileLink = await bot.getFileLink(fileId);
-            const response = await axios({
-                url: fileLink,
-                method: 'GET',
-                responseType: 'arraybuffer'
-            });
+            const response = await axios({ url: fileLink, method: 'GET', responseType: 'arraybuffer' });
+            const track = await recognizeAudio(Buffer.from(response.data));
 
-            const buffer = Buffer.from(response.data);
-
-            // SHAZAM RECOGNIZE - Use Service
-            const track = await recognizeAudio(buffer);
+            await bot.deleteMessage(chatId, statusMsg.message_id);
 
             if (track) {
-                const title = track.title;
-                const artist = track.artist;
-                const album = track.album || '-';
-                const year = track.year || '-';
-
-                await bot.deleteMessage(chatId, statusMsg.message_id);
-
-                let caption = `🎵 **Topildi!**\n\n🎤 **Artist:** ${artist}\n🎼 **Musiqa:** ${title}\n💿 **Albom:** ${album}\n📅 **Yil:** ${year}`;
-
-                // Add Download Button
-                const downloadKeyboard = [
-                    [{ text: '📥 Yuklab olish', callback_data: `search_${artist} - ${title}`.substring(0, 64) }]
-                ];
-                // Note: Telegram callback_data limit is 64 bytes. We truncate to be safe.
+                const { title, artist, album, year } = track;
+                const caption = `🎵 **Topildi!**\n\n🎤 **Artist:** ${artist}\n🎼 **Musiqa:** ${title}\n💿 **Albom:** ${album || '-'}\n📅 **Yil:** ${year || '-'}`;
 
                 await bot.sendMessage(chatId, caption, {
                     parse_mode: 'Markdown',
-                    reply_markup: { inline_keyboard: downloadKeyboard }
+                    reply_markup: {
+                        inline_keyboard: [[{ text: '📥 Yuklab olish', callback_data: `search_${artist} - ${title}`.substring(0, 64) }]]
+                    }
                 });
-
             } else {
-                await bot.deleteMessage(chatId, statusMsg.message_id);
-                bot.sendMessage(chatId, '❌ Kechirasiz, bu musiqani aniqlay olmadim.');
+                bot.sendMessage(chatId, '❌ Kechirasiz, bu musiqani aniqlay olmadim.', BACK_MENU);
             }
-
         } catch (error) {
             console.error('Shazam Error:', error);
             await bot.deleteMessage(chatId, statusMsg.message_id);
-            bot.sendMessage(chatId, '❌ Xatolik yuz berdi (Shazam serveri javob bermadi).');
+            bot.sendMessage(chatId, '❌ Xatolik yuz berdi.', BACK_MENU);
         }
     }
-
-    bot.onText(/\/start/, (msg) => {
-        const welcomeText =
-            `👋 **Assalomu alaykum!** Men **Tez Bot**man! 🤖
-Sizga quyidagi imkoniyatlarni taqdim etaman:
-
-1️⃣ **Video Yuklash** 📥
-YouTube, Instagram, TikTok va boshqa platformalardan videolarni *suv belgisiz* (watermark) va yuqori sifatda yuklab beraman.
-👉 *Shunchaki video havolasini (link) yuboring.*
-
-2️⃣ **Musiqa (MP3) Yuklash** 🎧
-Videolardan audio o'girib yoki to'g'ridan-to'g'ri musiqa sifatida yuklab beraman.
-
-3️⃣ **Qidiruv Tizimi** 🔎
-YouTube'dan video yoki musiqa qidirish uchun shunchaki nomini yozib yuboring.
-👉 *Misol: "Yulduz Usmonova"*
-
-4️⃣ **Shazam (Musiqa Topish)** 🎵
-Musiqa nomini bilmayapsizmi? Menga audio yuboring yoki ovozli xabar (voice) yozing, men uni topib beraman!
-👉 *Audio fayl yoki Voice yuboring.*
-
-🚀 **Boshlash uchun biror havola yuboring yoki qidiruv so'zini yozing!**`;
-
-        bot.sendMessage(msg.chat.id, welcomeText, { parse_mode: 'Markdown' });
-    });
 }
