@@ -30,7 +30,12 @@ const TEXTS = {
         select_format: "🎧 **Formatni tanlang:**",
 
         shazam_found: "🎵 **Topildi!**",
-        shazam_not_found: "❌ Kechirasiz, bu musiqani aniqlay olmadim."
+        shazam_not_found: "❌ Kechirasiz, bu musiqani aniqlay olmadim.",
+
+        // Safety
+        warning_adult: "🚫 **Kechirasiz, ushbu ma'lumot 18+ chekloviga ega yoki noto'g'ri so'zlarni o'z ichiga oladi.**\n\nBiz pornografik va zararli kontent tarqalishiga qarshimiz.",
+        warning_strike: "⚠️ **Ogohlantirish!** ({count}/3)\nIltimos, botdan to'g'ri maqsadda foydalaning. Aks holda bloklanasiz.",
+        user_blocked: "🚫 **Siz bloklandingiz.**\nBotdan foydalanish qoidalari buzilgani sababli cheklov qo'yildi."
     },
     uz_cyrl: {
         welcome: "🌟 **Ассалому алайкум! TEZ BOT га хуш келибсиз!**\n\n🤖 Мен орқали сиз:\n• YouTube, Instagram, TikTok дан видео юклашингиз 📥\n• Мусиқа ва аудио китоблар топишингиз 🎧\n• Видеоларни аудио форматга ўгиришингиз мумкин.\n\n👇 **Давом этиш учун менюдан танланг:**",

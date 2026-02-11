@@ -10,6 +10,7 @@ const { cleanFilename } = require('./utils/helpers');
 const { searchVideo, getVideoInfo, getVideoTitle, downloadMedia } = require('./utils/youtubeService');
 const { recognizeAudio } = require('./utils/shazamService');
 const { getText } = require('./utils/localization');
+const { checkText, checkMetadata, addStrike, isUserBlocked, resetStrikes } = require('./utils/moderation');
 
 // GLOBAL ERROR HANDLERS
 process.on('uncaughtException', (error) => {
@@ -108,7 +109,28 @@ function startBot() {
         });
     });
 
-    // 2. Handle Text Messages (State Machine)
+
+
+    // Admin Command: /unblock <chatId>
+    bot.onText(/\/unblock (.+)/, (msg, match) => {
+        const chatId = msg.chat.id;
+        const adminId = process.env.ADMIN_ID;
+        const targetId = match[1];
+
+        if (String(chatId) !== String(adminId)) {
+            return; // Ignore non-admins
+        }
+
+        if (targetId) {
+            resetStrikes(parseInt(targetId));
+            bot.sendMessage(chatId, `✅ User ${targetId} unblocked.`);
+            bot.sendMessage(targetId, "✅ **Siz blokdan chiqarildingiz.**\nQoidalarga rioya qiling.", { parse_mode: 'Markdown' }).catch(() => { });
+        } else {
+            bot.sendMessage(chatId, "⚠️ Usage: /unblock <chatId>");
+        }
+    });
+
+    // 2. Handle Text Messages
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         const text = msg.text;
@@ -124,6 +146,12 @@ function startBot() {
 
         const currentState = getUserState(chatId);
         const lang = getLang(chatId);
+
+        // STRIKE CHECKS (Block Middleware)
+        if (isUserBlocked(chatId)) {
+            bot.sendMessage(chatId, getText(lang, 'user_blocked'));
+            return;
+        }
 
         // --- STATE: MAIN ---
         if (currentState === STATES.MAIN) {
@@ -167,6 +195,15 @@ function startBot() {
 
         // --- STATE: WAITING_MUSIC (Shazam/Search context) ---
         if (currentState === STATES.WAITING_MUSIC) {
+            // Safety Check
+            const safety = checkText(text);
+            if (!safety.safe) {
+                const strikeData = addStrike(chatId);
+                bot.sendMessage(chatId, getText(lang, 'warning_adult'));
+                bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
+                return;
+            }
+
             bot.sendMessage(chatId, getText(lang, 'searching'), { disable_notification: true });
 
             try {
@@ -262,8 +299,35 @@ function startBot() {
     };
 
     async function processUrl(chatId, url, typeContext) {
+        const lang = getLang(chatId);
         try {
-            const title = await getVideoTitle(url) || 'Video';
+            // Safety Check 1: URL Keywords (Fast)
+            const textSafety = checkText(url);
+            if (!textSafety.safe) {
+                const strikeData = addStrike(chatId);
+                bot.sendMessage(chatId, getText(lang, 'warning_adult'));
+                bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
+                return;
+            }
+
+            // Safety Check 2: Metadata (Deep)
+            // We use getVideoInfo instead of Title for full metadata access
+            const info = await getVideoInfo(url);
+
+            if (!info) {
+                bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
+                return;
+            }
+
+            const metaSafety = checkMetadata(info);
+            if (!metaSafety.safe) {
+                const strikeData = addStrike(chatId);
+                bot.sendMessage(chatId, getText(lang, 'warning_adult'));
+                bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
+                return;
+            }
+
+            const title = info.title || 'Video';
             userRequests.set(chatId, { url, title, type: typeContext });
 
             const targetResolutions = [
