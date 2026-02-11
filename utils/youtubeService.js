@@ -5,8 +5,9 @@ const NodeCache = require('node-cache');
 // Initialize Cache (TTL: 1 hour for search/info, 10 mins for titles)
 const cache = new NodeCache({ stdTTL: 3600 });
 
-// Configuration constants - easier to test/mock if exported or passed in
-const YOUTUBE_DL_BINARY = path.join(__dirname, '../yt-dlp.exe');
+// Configuration constants
+const isWin = process.platform === 'win32';
+const YOUTUBE_DL_BINARY = isWin ? path.join(__dirname, '../yt-dlp.exe') : 'yt-dlp';
 const FFMPEG_LOCATION = path.join(__dirname, '../bin');
 
 async function searchVideo(query, limit = 5) {
