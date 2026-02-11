@@ -73,36 +73,100 @@ async function getVideoInfo(url, retries = 2) {
 async function downloadMedia(url, type, options = {}) {
     const { outputPath, height } = options;
 
+    let flags = {
+        output: outputPath,
+        noPlaylist: true,
+        ffmpegLocation: FFMPEG_LOCATION,
+        noWarnings: true
+    };
+
     if (type === 'audio') {
-        await youtubedl(url, {
-            output: outputPath,
+        Object.assign(flags, {
             extractAudio: true,
             audioFormat: 'mp3',
             addMetadata: true,
             embedThumbnail: true,
-            noPlaylist: true,
-            ffmpegLocation: FFMPEG_LOCATION
-        }, {
-            youtubeDlBinary: YOUTUBE_DL_BINARY
         });
-        return outputPath.replace('.%(ext)s', '.mp3'); // Heuristic return
     } else if (type === 'video') {
         const formatSelect = height
             ? `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${height}][ext=mp4]/best[height<=${height}]`
             : 'best[ext=mp4]/best';
 
-        await youtubedl(url, {
-            output: outputPath,
+        Object.assign(flags, {
             format: formatSelect,
-            noPlaylist: true,
             mergeOutputFormat: 'mp4',
-            ffmpegLocation: FFMPEG_LOCATION
-        }, {
+        });
+    } else {
+        throw new Error('Invalid download type');
+    }
+
+    try {
+        const result = await youtubedl(url, flags, {
             youtubeDlBinary: YOUTUBE_DL_BINARY
         });
-        return outputPath.replace('.%(ext)s', '.mp4');
+
+        // youtube-dl-exec returns the stdout string directly by default
+        const stdout = (typeof result === 'string') ? result : (result.stdout || '');
+
+        // Log for debugging
+        console.log('yt-dlp result type:', typeof result);
+        console.log('yt-dlp stdout:', stdout);
+
+        // Regex to find "Destination: <path>" or "Merging formats into "<path>"" or "already downloaded"
+        // yt-dlp might output multiple destinations (temp file, then final file after merge/extract)
+
+        // Find all matches for Destination or Merging
+        // catch: [download] Destination: ... or [ExtractAudio] Destination: ... or [Merger] Merging formats into "..."
+        const destMatches = [...stdout.matchAll(/(?:Destination:|Merging formats into ")(.+?)(?:"|$)/g)];
+        const alreadyMatches = [...stdout.matchAll(/\[download\]\s+(.+)\s+has already been downloaded/g)];
+
+        let potentialPaths = [];
+
+        // Add already downloaded first (if any)
+        if (alreadyMatches.length > 0) {
+            potentialPaths.push(alreadyMatches[0][1]);
+        }
+
+        // Add destinations (reverse order is usually better as the last one is the final file)
+        if (destMatches.length > 0) {
+            for (let i = destMatches.length - 1; i >= 0; i--) {
+                potentialPaths.push(destMatches[i][1]);
+            }
+        }
+
+        for (let p of potentialPaths) {
+            let foundPath = p.trim();
+            // Clean up quotes if present
+            foundPath = foundPath.replace(/^"/, '').replace(/"$/, '');
+
+            // If path is relative, make it absolute (relative to cwd, which is process.cwd())
+            if (!path.isAbsolute(foundPath)) {
+                foundPath = path.resolve(process.cwd(), foundPath);
+            }
+
+            // Check if exists
+            if (require('fs-extra').existsSync(foundPath)) {
+                console.log('✅ Found valid file from stdout:', foundPath);
+                return foundPath;
+            }
+        }
+
+        console.log('⚠️ Parsed paths did not exist, trying fallback...');
+
+
+
+        // Fallback: Check if the template replaced path exists
+        const probableExt = type === 'audio' ? '.mp3' : '.mp4';
+        const fallbackPath = outputPath.replace('.%(ext)s', probableExt);
+
+        if (require('fs-extra').existsSync(fallbackPath)) return fallbackPath;
+
+        // If we really can't find it
+        throw new Error('Could not determine downloaded file path from output.');
+
+    } catch (e) {
+        throw new Error(`Download failed: ${e.message}`);
     }
-    throw new Error('Invalid download type');
 }
 
 module.exports = {
