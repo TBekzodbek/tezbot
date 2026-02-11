@@ -153,27 +153,33 @@ function startBot() {
             return;
         }
 
-        // --- STATE: MAIN ---
-        if (currentState === STATES.MAIN) {
-            // Check against all possible localized strings for buttons
-            // or just rely on what the user currently sees. 
-            // Better: Check strictly against the current lang's text for correctness.
+        // GLOBAL NAVIGATION (Overrides state)
+        // Check if text matches any main menu button or back button
+        const isMainMenuCommand = [
+            getText(lang, 'menu_music'),
+            getText(lang, 'menu_video'),
+            getText(lang, 'menu_audio'),
+            getText(lang, 'menu_help'),
+            getText(lang, 'menu_lang')
+        ].includes(text);
 
+        if (text === getText(lang, 'menu_back') || text === '🏠 Bosh sahifa') {
+            setUserState(chatId, STATES.MAIN);
+            bot.sendMessage(chatId, `🏠 **${getText(lang, 'menu_back')}**`, getMainMenu(lang));
+            return;
+        } else if (isMainMenuCommand) {
             if (text === getText(lang, 'menu_music')) {
                 setUserState(chatId, STATES.WAITING_MUSIC);
                 bot.sendMessage(chatId, getText(lang, 'prompt_music'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
-
             } else if (text === getText(lang, 'menu_video')) {
                 setUserState(chatId, STATES.WAITING_VIDEO);
                 bot.sendMessage(chatId, getText(lang, 'prompt_video'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
-
             } else if (text === getText(lang, 'menu_audio')) {
                 setUserState(chatId, STATES.WAITING_AUDIO);
                 bot.sendMessage(chatId, getText(lang, 'prompt_audio'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
-
             } else if (text === getText(lang, 'menu_help')) {
+                setUserState(chatId, STATES.MAIN);
                 bot.sendMessage(chatId, '🤖 @Tez_Bot', getMainMenu(lang));
-
             } else if (text === getText(lang, 'menu_lang')) {
                 bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
                     reply_markup: {
@@ -183,12 +189,16 @@ function startBot() {
                         ]
                     }
                 });
+            }
+            return; // Important: Return after handling a global navigation command
+        }
+
+        // --- STATE: MAIN (Fallback for unknown commands) ---
+        if (currentState === STATES.MAIN) {
+            if (text.match(/https?:\/\//)) {
+                bot.sendMessage(chatId, getText(lang, 'invalid_link'), getMainMenu(lang));
             } else {
-                if (text.match(/https?:\/\//)) {
-                    bot.sendMessage(chatId, getText(lang, 'invalid_link'), getMainMenu(lang));
-                } else {
-                    bot.sendMessage(chatId, getText(lang, 'error'), getMainMenu(lang));
-                }
+                bot.sendMessage(chatId, getText(lang, 'error'), getMainMenu(lang));
             }
             return;
         }

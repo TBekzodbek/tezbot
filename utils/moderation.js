@@ -15,7 +15,18 @@ function checkText(text) {
     const lowerText = text.toLowerCase();
 
     for (const keyword of BANNED_KEYWORDS) {
-        if (lowerText.includes(keyword)) {
+        // Escape special regex characters
+        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Look for whole word matches OR matches surrounded by non-word chars
+        // Using \b might fail for unicode/cyrillic if not supported well, 
+        // but 'seks' inside 'seksual' might be valid to block? 
+        // User issue: 'aldamadim' contains 'am'. 
+        // 'am' should only match ' am ' or start/end of string.
+
+        // Simple word boundary regex
+        const regex = new RegExp(`(^|\\s|\\.|,|-)${escapedKeyword}($|\\s|\\.|,|-)`, 'i');
+
+        if (regex.test(lowerText)) {
             return { safe: false, reason: 'keywords', keyword };
         }
     }
