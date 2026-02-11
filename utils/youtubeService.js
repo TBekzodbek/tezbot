@@ -23,7 +23,8 @@ async function searchVideo(query, limit = 5) {
             noWarnings: true,
             preferFreeFormats: true,
             flatPlaylist: true,
-            ffmpegLocation: FFMPEG_LOCATION
+            ffmpegLocation: FFMPEG_LOCATION,
+            forceIpv4: true // Optimize DNS
         }, {
             youtubeDlBinary: YOUTUBE_DL_BINARY
         });
@@ -47,7 +48,8 @@ async function getVideoTitle(url) {
             noCallHome: true,
             noPlaylist: true,
             youtubeSkipDashManifest: true,
-            ffmpegLocation: FFMPEG_LOCATION
+            ffmpegLocation: FFMPEG_LOCATION,
+            forceIpv4: true
         }, {
             youtubeDlBinary: YOUTUBE_DL_BINARY
         });
@@ -79,8 +81,10 @@ async function getVideoInfo(url, retries = 2) {
                 noCallHome: true,
                 preferFreeFormats: true,
                 youtubeSkipDashManifest: true,
-                flatPlaylist: true,
-                ffmpegLocation: FFMPEG_LOCATION
+                ffmpegLocation: FFMPEG_LOCATION,
+                forceIpv4: true, // Already present
+                concurrentFragments: 8, // Added
+                httpChunkSize: '10M' // Added
             }, {
                 youtubeDlBinary: YOUTUBE_DL_BINARY
             });

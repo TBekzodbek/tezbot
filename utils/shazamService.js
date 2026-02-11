@@ -8,15 +8,21 @@ const shazamApi = require('shazam-api');
 async function recognizeAudio(buffer) {
     try {
         const shazam = new shazamApi.Shazam();
-        const recog = await shazam.recognizeSong(buffer);
+
+        // Timeout after 10 seconds to keep bot fast
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Shazam Timeout')), 10000)
+        );
+
+        const recogPromise = shazam.recognizeSong(buffer);
+        const recog = await Promise.race([recogPromise, timeoutPromise]);
+
         if (recog && (recog.title || recog.track)) {
-            // Normalize response if necessary, shazam-api structure varies
-            // Assuming recogn.track or recogn itself has the data
             return recog.track || recog;
         }
         return null;
     } catch (e) {
-        console.error('Shazam Service Error:', e);
+        console.error('Shazam Service Error:', e.message);
         return null;
     }
 }
