@@ -65,10 +65,17 @@ const STATES = {
 function startBot() {
     const bot = new TelegramBot(token, { polling: true });
 
-    // Clear Webhooks before starting polling
-    bot.deleteWebhook().then(() => {
-        console.log(`[ID: ${INSTANCE_ID}] Webhook cleared. Starting polling...`);
-    });
+    // Clear Webhooks if the method exists (prevents conflicts)
+    const delWebhook = bot.deleteWebhook || bot.deleteWebHook;
+    if (delWebhook) {
+        delWebhook.call(bot).then(() => {
+            console.log(`[ID: ${INSTANCE_ID}] Webhook cleared. Starting polling...`);
+        }).catch(err => {
+            console.warn(`[ID: ${INSTANCE_ID}] Webhook clear error (ignoring):`, err.message);
+        });
+    } else {
+        console.log(`[ID: ${INSTANCE_ID}] deleteWebhook not supported, skipping...`);
+    }
 
     bot.on('polling_error', (error) => {
         if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
@@ -78,18 +85,23 @@ function startBot() {
         }
     });
 
-    // Connection Verification
     bot.getMe().then((me) => {
         console.log(`✅ [ID: ${INSTANCE_ID}] Bot muvaffaqiyatli ulandi! Username: @${me.username}`);
         console.log(`📡 [ID: ${INSTANCE_ID}] Polling boshlandi...`);
+
+        // Notify Admin on startup
+        const adminId = process.env.ADMIN_ID;
+        if (adminId) {
+            bot.sendMessage(adminId, `🚀 **Bot Ishga Tushdi!**\n\n📌 **Instance ID:** ${INSTANCE_ID}\n🤖 **Bot:** @${me.username}\n🔄 **Hozirgi holat:** Polling boshlandi.`, { parse_mode: 'Markdown' }).catch(() => { });
+        }
     }).catch(err => {
         console.error(`❌ [ID: ${INSTANCE_ID}] Bot ulanishda xatolik:`, err.message);
     });
 
-    // Heartbeat Log (Every 10 minutes)
+    // Heartbeat Log (Every 60 seconds for debugging)
     setInterval(() => {
         console.log(`💓 [ID: ${INSTANCE_ID}] Bot holati - OK (Polling: ${bot.isPolling()})`);
-    }, 600000);
+    }, 60000);
 
     const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
     fs.ensureDirSync(DOWNLOADS_DIR);
