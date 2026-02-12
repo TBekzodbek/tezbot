@@ -142,7 +142,7 @@ async function getVideoInfo(url, retries = 1) {
 
     for (const client of clients) {
         try {
-            console.log(`🔎 [ID: ${INSTANCE_ID}] Fetching metadata via client: ${client}...`);
+            console.log(`🔎 Fetching metadata via client: ${client}...`);
             const infoPromise = youtubedl(url, {
                 dumpSingleJson: true,
                 noWarnings: true,
