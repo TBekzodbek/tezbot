@@ -144,7 +144,7 @@ function startBot() {
 
         // --- GLOBAL COMMANDS ---
         if (text === getText(lang, 'menu_help')) {
-            bot.sendMessage(chatId, '🤖 @tez_bbot\n\n1. 🎵 **Music:** Send Artist/Song name.\n2. 📹 **Video:** Send link (YouTube/Instagram).', getMainMenu(lang));
+            bot.sendMessage(chatId, getText(lang, 'help_text'), getMainMenu(lang));
             return;
         } else if (text === getText(lang, 'menu_lang')) {
             bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
@@ -472,7 +472,7 @@ function startBot() {
 
             if (track) {
                 const { title, artist, album, year } = track;
-                const caption = `${getText(lang, 'shazam_found')}\n\n🎤 **Artist:** ${artist}\n🎼 **Oldadi:** ${title}\n💿 **Album:** ${album || '-'}\n📅 **Yil:** ${year || '-'}`;
+                const caption = `${getText(lang, 'shazam_found')}\n\n**${getText(lang, 'label_artist')}:** ${artist}\n**${getText(lang, 'label_title')}:** ${title}\n**${getText(lang, 'label_album')}:** ${album || '-'}\n**${getText(lang, 'label_year')}:** ${year || '-'}`;
 
                 await bot.sendMessage(chatId, caption, {
                     parse_mode: 'Markdown',

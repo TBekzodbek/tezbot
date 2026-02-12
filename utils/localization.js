@@ -33,6 +33,13 @@ const TEXTS = {
         shazam_found: "🎵 **Topildi!**",
         shazam_not_found: "❌ Kechirasiz, bu musiqani aniqlay olmadim.",
 
+        // Dynamic Content
+        help_text: "🤖 @tez_bbot\n\n1. 🎵 **Musiqa:** Ijrochi yoki qo'shiq nomini yuboring.\n2. 📹 **Video:** Havolani (link) yuboring (YouTube/Instagram).",
+        label_artist: "🎤 Ijrochi",
+        label_title: "🎵 Nomi",
+        label_album: "💿 Albom",
+        label_year: "📅 Yil",
+
         // Safety
         warning_adult: "🚫 **Kechirasiz, ushbu ma'lumot 18+ chekloviga ega yoki noto'g'ri so'zlarni o'z ichiga oladi.**\n\nBiz pornografik va zararli kontent tarqalishiga qarshimiz.",
         warning_strike: "⚠️ **Ogohlantirish!** ({count}/3)\nIltimos, botdan to'g'ri maqsadda foydalaning. Aks holda bloklanasiz.",
@@ -70,7 +77,14 @@ const TEXTS = {
         select_format: "🎧 **Форматни танланг:**",
 
         shazam_found: "🎵 **Топилди!**",
-        shazam_not_found: "❌ Кечирасиз, бу мусиқани аниқлай олмадим."
+        shazam_not_found: "❌ Кечирасиз, бу мусиқани аниқлай олмадим.",
+
+        // Dynamic Content
+        help_text: "🤖 @tez_bbot\n\n1. 🎵 **Мусиқа:** Ижрочи ёки қўшиқ номини юборинг.\n2. 📹 **Видео:** Ҳаволани (link) юборинг (YouTube/Instagram).",
+        label_artist: "🎤 Ижрочи",
+        label_title: "🎵 Номи",
+        label_album: "💿 Альбом",
+        label_year: "📅 Йил"
     },
     ru: {
         welcome: "🌟 **Привет! Добро пожаловать в TEZ BOT!**\n\n🤖 С моей помощью вы можете:\n• Скачивать видео с YouTube, Instagram, TikTok 📥\n• Находить музыку и аудиокниги 🎧\n• Конвертировать видео в аудио формат.\n\n👇 **Выберите из меню для продолжения:**",
@@ -104,7 +118,14 @@ const TEXTS = {
         select_format: "🎧 **Выберите формат:**",
 
         shazam_found: "🎵 **Найдено!**",
-        shazam_not_found: "❌ Извините, не удалось распознать эту музыку."
+        shazam_not_found: "❌ Извините, не удалось распознать эту музыку.",
+
+        // Dynamic Content
+        help_text: "🤖 @tez_bbot\n\n1. 🎵 **Музыка:** Отправьте имя исполнителя или название песни.\n2. 📹 **Видео:** Отправьте ссылку (YouTube/Instagram).",
+        label_artist: "🎤 Исполнитель",
+        label_title: "🎵 Название",
+        label_album: "💿 Альбом",
+        label_year: "📅 Год"
     },
     en: {
         welcome: "🌟 **Hello! Welcome to TEZ BOT!**\n\n🤖 With me you can:\n• Download videos from YouTube, Instagram, TikTok 📥\n• Find music and audiobooks 🎧\n• Convert videos to audio format.\n\n👇 **Select from the menu to continue:**",
@@ -138,7 +159,14 @@ const TEXTS = {
         select_format: "🎧 **Select Format:**",
 
         shazam_found: "🎵 **Found!**",
-        shazam_not_found: "❌ Sorry, could not identify this music."
+        shazam_not_found: "❌ Sorry, could not identify this music.",
+
+        // Dynamic Content
+        help_text: "🤖 @tez_bbot\n\n1. 🎵 **Music:** Send Artist/Song name.\n2. 📹 **Video:** Send link (YouTube/Instagram).",
+        label_artist: "🎤 Artist",
+        label_title: "🎵 Title",
+        label_album: "💿 Album",
+        label_year: "📅 Year"
     }
 };
 
