@@ -11,7 +11,7 @@ const { searchVideo, searchMusic, getVideoInfo, getVideoTitle, downloadMedia } =
 const { recognizeAudio } = require('./utils/shazamService');
 const { getText } = require('./utils/localization');
 const { checkText, checkMetadata, addStrike, isUserBlocked, resetStrikes } = require('./utils/moderation');
-const { getLang, setLang, getState, setState } = require('./utils/storage');
+const { getLang, setLang, getState, setState, getRequest, setRequest } = require('./utils/storage');
 
 // GLOBAL ERROR HANDLERS
 process.on('uncaughtException', (error) => {
@@ -86,10 +86,10 @@ function startBot() {
         console.error(`❌ [ID: ${INSTANCE_ID}] Bot ulanishda xatolik:`, err.message);
     });
 
-    // Heartbeat Log (Every 60 seconds)
+    // Heartbeat Log (Every 10 minutes)
     setInterval(() => {
         console.log(`💓 [ID: ${INSTANCE_ID}] Bot holati - OK (Polling: ${bot.isPolling()})`);
-    }, 60000);
+    }, 600000);
 
     const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
     fs.ensureDirSync(DOWNLOADS_DIR);
@@ -109,7 +109,8 @@ function startBot() {
     const getMainMenu = (lang) => ({
         reply_markup: {
             keyboard: [
-                [getText(lang, 'menu_lang')]
+                [getText(lang, 'menu_lang')],
+                [{ text: "📣 Botni ulashish / Поделиться" }]
             ],
             resize_keyboard: true
         }
@@ -211,6 +212,17 @@ function startBot() {
             return;
         }
 
+        if (text.includes("Botni ulashish") || text.includes("Поделиться")) {
+            const shareText = "🚀 **Tez Bot** - Eng tezkor YouTube va Music yuklovchi bot!\n\nBotni bu yerda topishingiz mumkin: @tez_bbot";
+            bot.sendMessage(chatId, shareText, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[{ text: "📲 Ulashish / Поделиться", url: "https://t.me/share/url?url=https://t.me/tez_bbot&text=Eng%20tezkor%20yuklovchi%20bot!" }]]
+                }
+            });
+            return;
+        }
+
         // --- SMART HANDLING (MAIN STATE) ---
         // 1. Check if URL -> Video Download
         if (text.match(/https?:\/\//)) {
@@ -269,7 +281,7 @@ function startBot() {
     });
 
     // 3. Helpers: Process URL & Action Loop
-    const userRequests = new Map(); // Store temporary data for callbacks
+    // userRequests is now managed by storage.js (getRequest/setRequest)
 
     const sendActionLoop = (chatId, action) => {
         bot.sendChatAction(chatId, action).catch(() => { });
@@ -306,7 +318,7 @@ function startBot() {
                 return;
             }
 
-            userRequests.set(chatId, { url, title: title, type: typeContext });
+            setRequest(chatId, { url, title: title, type: typeContext });
 
             const targetResolutions = [
                 { label: '1080p Full HD', val: 1080 },
@@ -325,6 +337,9 @@ function startBot() {
 
             const keyboard = [];
             for (let i = 0; i < buttons.length; i += 2) keyboard.push(buttons.slice(i, i + 2));
+
+            // Add Global Cancel Button
+            keyboard.push([{ text: '❌ Bekor qilish', callback_data: 'cancel_req' }]);
 
             const menuOptions = {
                 parse_mode: 'Markdown',
@@ -442,7 +457,14 @@ function startBot() {
 
 
         // --- DOWNLOAD SELECTION ---
-        const reqData = userRequests.get(chatId);
+        if (data === 'cancel_req') {
+            setRequest(chatId, null);
+            bot.deleteMessage(chatId, query.message.message_id).catch(() => { });
+            debugSend(chatId, getText(lang, 'main_menu'), getMainMenu(lang));
+            return;
+        }
+
+        const reqData = getRequest(chatId);
         if (!reqData) {
             // No answerCallbackQuery needed here as it was done at top
             return;
@@ -505,6 +527,9 @@ function startBot() {
             }
 
             await fs.remove(filePath);
+
+            // Clear request after successful completion
+            setRequest(chatId, null);
 
             // After download, show Home button or Custom Menu
             const finalMenu = customMenu || getBackMenu(lang);

@@ -9,7 +9,8 @@ fs.ensureDirSync(DATA_DIR);
 
 // Load data or initialize defaults
 let db = {
-    users: {}, // { chatId: { lang: 'uz', state: 'MAIN' } }
+    users: {},    // { chatId: { lang: 'uz', state: 'MAIN' } }
+    requests: {}, // { chatId: { url, title, type, timestamp } }
 };
 
 if (fs.existsSync(DB_FILE)) {
@@ -60,9 +61,42 @@ function setState(chatId, state) {
     save();
 }
 
+function getRequest(chatId) {
+    return db.requests[chatId];
+}
+
+function setRequest(chatId, data) {
+    if (data === null) {
+        delete db.requests[chatId];
+    } else {
+        db.requests[chatId] = { ...data, timestamp: Date.now() };
+    }
+    save();
+}
+
+// Cleanup old requests (older than 24 hours) to keep DB small
+function cleanup() {
+    const now = Date.now();
+    const expiry = 24 * 60 * 60 * 1000;
+    let changed = false;
+
+    for (const chatId in db.requests) {
+        if (now - db.requests[chatId].timestamp > expiry) {
+            delete db.requests[chatId];
+            changed = true;
+        }
+    }
+    if (changed) save();
+}
+
+// Run cleanup once on load
+cleanup();
+
 module.exports = {
     getLang,
     setLang,
     getState,
-    setState
+    setState,
+    getRequest,
+    setRequest
 };
