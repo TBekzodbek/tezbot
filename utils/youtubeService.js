@@ -142,6 +142,7 @@ async function getVideoInfo(url, retries = 1) {
 
     for (const client of clients) {
         try {
+            console.log(`🔎 [ID: ${INSTANCE_ID}] Fetching metadata via client: ${client}...`);
             const infoPromise = youtubedl(url, {
                 dumpSingleJson: true,
                 noWarnings: true,
@@ -157,7 +158,9 @@ async function getVideoInfo(url, retries = 1) {
                 userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             });
 
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 12000));
+            // Shorter timeout for first client to keep it snappy
+            const timeoutMs = client === 'ios' ? 7000 : 12000;
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeoutMs));
             const info = await Promise.race([infoPromise, timeoutPromise]);
 
             // Add thumbnail logic

@@ -70,6 +70,14 @@ function startBot() {
         console.log(`[ID: ${INSTANCE_ID}] Webhook cleared. Starting polling...`);
     });
 
+    bot.on('polling_error', (error) => {
+        if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
+            console.error(`⚠️ [ID: ${INSTANCE_ID}] Polling Conflict: Boshqa bot instance ishlab turibdi!`);
+        } else {
+            console.error(`⚠️ [ID: ${INSTANCE_ID}] Polling Error:`, error.message);
+        }
+    });
+
     const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
     fs.ensureDirSync(DOWNLOADS_DIR);
 
@@ -162,6 +170,9 @@ function startBot() {
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         const text = msg.text;
+        const user = msg.from ? `@${msg.from.username || msg.from.first_name}` : 'Unknown';
+
+        console.log(`📩 [ID: ${INSTANCE_ID}] Message from ${user}: ${text || '[Media]'}`);
 
         if (!text || text.startsWith('/')) return;
 
@@ -257,6 +268,9 @@ function startBot() {
 
     async function processUrl(chatId, url, typeContext) {
         const lang = getLang(chatId);
+        // Immediate feedback so user knows we are working
+        const statusMsg = await debugSend(chatId, getText(lang, 'processing'));
+
         try {
             // Safety Check 1: URL Keywords (Fast)
             const textSafety = checkText(url);
@@ -271,6 +285,8 @@ function startBot() {
             // We now use the improved getVideoInfo which is robust and provides thumbnails
             const info = await getVideoInfo(url).catch(() => null);
             const title = info ? info.title : await getVideoTitle(url);
+
+            await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => { });
 
             if (!title) {
                 debugSend(chatId, getText(lang, 'error'), getBackMenu(lang));
