@@ -132,13 +132,15 @@ async function getVideoTitle(url) {
     }
 }
 
-async function getVideoInfo(url, retries = 2) {
-    // Info might be large, but useful to cache for short term if user clicks multiple buttons
+async function getVideoInfo(url, retries = 1) {
     const cacheKey = `info:${url}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    for (let i = 0; i <= retries; i++) {
+    // Try common clients for metadata
+    const clients = ['ios', 'android', 'web'];
+
+    for (const client of clients) {
         try {
             const infoPromise = youtubedl(url, {
                 dumpSingleJson: true,
@@ -148,25 +150,30 @@ async function getVideoInfo(url, retries = 2) {
                 youtubeSkipDashManifest: true,
                 ffmpegLocation: FFMPEG_LOCATION,
                 forceIpv4: true,
-                concurrentFragments: 16,
-                httpChunkSize: '10M',
+                extractorArgs: `youtube:player_client=${client}`,
                 cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
             }, {
                 youtubeDlBinary: YOUTUBE_DL_BINARY,
                 userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             });
 
-            // Timeout wrapper (10s)
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000));
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 12000));
             const info = await Promise.race([infoPromise, timeoutPromise]);
 
-            cache.set(cacheKey, info, 300); // 5 min TTL
+            // Add thumbnail logic
+            if (info && !info.thumbnail && info.thumbnails && info.thumbnails.length > 0) {
+                // Pick highest quality thumbnail
+                info.thumbnail = info.thumbnails.sort((a, b) => (b.width || 0) - (a.width || 0))[0].url;
+            }
+
+            cache.set(cacheKey, info, 300);
             return info;
         } catch (e) {
-            if (i === retries) throw e; // Throw on last attempt
-            console.log(`Video Info Retry ${i + 1}/${retries}...`);
+            console.log(`⚠️ Metadata fetch failed for client ${client}: ${e.message}`);
+            continue; // try next client
         }
     }
+    throw new Error('Could not fetch video metadata from any client.');
 }
 
 async function downloadMedia(url, type, options = {}) {
@@ -207,84 +214,94 @@ async function downloadMedia(url, type, options = {}) {
         throw new Error('Invalid download type');
     }
 
-    try {
-        const result = await youtubedl(url, flags, {
-            youtubeDlBinary: YOUTUBE_DL_BINARY,
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
-        });
+    // Retry strategy with different clients
+    const clients = ['ios', 'android', 'web'];
+    let lastError = null;
 
-        // youtube-dl-exec returns the stdout string directly by default
-        const stdout = (typeof result === 'string') ? result : (result.stdout || '');
+    for (const client of clients) {
+        try {
+            const currentFlags = { ...flags, extractorArgs: `youtube:player_client=${client}` };
+            const result = await youtubedl(url, currentFlags, {
+                youtubeDlBinary: YOUTUBE_DL_BINARY,
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
+            });
 
-        // Strip ANSI codes (colors, progress bars) to ensure regex works
-        // eslint-disable-next-line no-control-regex
-        const cleanStdout = stdout.replace(/\x1B\[\d+;?\d*m/g, '');
+            // youtube-dl-exec returns the stdout string directly by default
+            const stdout = (typeof result === 'string') ? result : (result.stdout || '');
 
-        // Log for debugging
-        console.log('yt-dlp result type:', typeof result);
-        console.log('yt-dlp stdout (cleaned):', cleanStdout);
+            // Strip ANSI codes (colors, progress bars) to ensure regex works
+            // eslint-disable-next-line no-control-regex
+            const cleanStdout = stdout.replace(/\x1B\[\d+;?\d*m/g, '');
 
-        // Regex to find "Destination: <path>" or "Merging formats into "<path>"" or "already downloaded"
-        // yt-dlp might output multiple destinations (temp file, then final file after merge/extract)
+            // Log for debugging
+            console.log('yt-dlp result type:', typeof result);
+            console.log('yt-dlp stdout (cleaned):', cleanStdout);
 
-        // Find all matches for Destination or Merging
-        // catch: [download] Destination: ... or [ExtractAudio] Destination: ... or [Merger] Merging formats into "..."
-        const destMatches = [...cleanStdout.matchAll(/(?:Destination:|Merging formats into ")(.+?)(?:"|$)/g)];
-        const alreadyMatches = [...cleanStdout.matchAll(/\[download\]\s+(.+)\s+has already been downloaded/g)];
+            // Regex to find "Destination: <path>" or "Merging formats into "<path>"" or "already downloaded"
+            // yt-dlp might output multiple destinations (temp file, then final file after merge/extract)
 
-        let potentialPaths = [];
+            // Find all matches for Destination or Merging
+            // catch: [download] Destination: ... or [ExtractAudio] Destination: ... or [Merger] Merging formats into "..."
+            const destMatches = [...cleanStdout.matchAll(/(?:Destination:|Merging formats into ")(.+?)(?:"|$)/g)];
+            const alreadyMatches = [...cleanStdout.matchAll(/\[download\]\s+(.+)\s+has already been downloaded/g)];
 
-        // Add already downloaded first (if any)
-        if (alreadyMatches.length > 0) {
-            potentialPaths.push(alreadyMatches[0][1]);
-        }
+            let potentialPaths = [];
 
-        // Add destinations (reverse order is usually better as the last one is the final file)
-        if (destMatches.length > 0) {
-            for (let i = destMatches.length - 1; i >= 0; i--) {
-                potentialPaths.push(destMatches[i][1]);
-            }
-        }
-
-        for (let p of potentialPaths) {
-            let foundPath = p.trim();
-            // Clean up quotes if present
-            foundPath = foundPath.replace(/^"/, '').replace(/"$/, '');
-
-            // If path is relative, make it absolute (relative to cwd, which is process.cwd())
-            if (!path.isAbsolute(foundPath)) {
-                foundPath = path.resolve(process.cwd(), foundPath);
+            // Add already downloaded first (if any)
+            if (alreadyMatches.length > 0) {
+                potentialPaths.push(alreadyMatches[0][1]);
             }
 
-            // Check if exists
-            if (require('fs-extra').existsSync(foundPath)) {
-                console.log('✅ Found valid file from stdout:', foundPath);
-                return foundPath;
+            // Add destinations (reverse order is usually better as the last one is the final file)
+            if (destMatches.length > 0) {
+                for (let i = destMatches.length - 1; i >= 0; i--) {
+                    potentialPaths.push(destMatches[i][1]);
+                }
             }
-        }
 
-        console.log('⚠️ Parsed paths did not exist, trying fallback...');
+            for (let p of potentialPaths) {
+                let foundPath = p.trim();
+                // Clean up quotes if present
+                foundPath = foundPath.replace(/^"/, '').replace(/"$/, '');
 
-        // Fallback: Check if the template replaced path exists
-        // We check a few common extensions because yt-dlp might have merged into mkv or webm if mp4 failed
-        const base = outputPath.replace('.%(ext)s', '');
-        const extensions = type === 'audio' ? ['.mp3', '.m4a'] : ['.mp4', '.mkv', '.webm'];
+                // If path is relative, make it absolute (relative to cwd, which is process.cwd())
+                if (!path.isAbsolute(foundPath)) {
+                    foundPath = path.resolve(process.cwd(), foundPath);
+                }
 
-        for (const ext of extensions) {
-            const fallbackPath = base + ext;
-            if (require('fs-extra').existsSync(fallbackPath)) {
-                console.log('✅ Found file via fallback strategy:', fallbackPath);
-                return fallbackPath;
+                // Check if exists
+                if (require('fs-extra').existsSync(foundPath)) {
+                    console.log('✅ Found valid file from stdout:', foundPath);
+                    return foundPath;
+                }
             }
+
+            console.log('⚠️ Parsed paths did not exist, trying fallback...');
+
+            // Fallback: Check if the template replaced path exists
+            // We check a few common extensions because yt-dlp might have merged into mkv or webm if mp4 failed
+            const base = outputPath.replace('.%(ext)s', '');
+            const extensions = type === 'audio' ? ['.mp3', '.m4a'] : ['.mp4', '.mkv', '.webm'];
+
+            for (const ext of extensions) {
+                const fallbackPath = base + ext;
+                if (require('fs-extra').existsSync(fallbackPath)) {
+                    console.log('✅ Found file via fallback strategy:', fallbackPath);
+                    return fallbackPath;
+                }
+            }
+
+            throw new Error('Could not determine downloaded file path from output.');
+
+        } catch (e) {
+            console.log(`⚠️ Download attempt with client ${client} failed: ${e.message}`);
+            lastError = e;
+            // Continue to next client
         }
-
-        // If we really can't find it
-        throw new Error('Could not determine downloaded file path from output.');
-
-    } catch (e) {
-        throw new Error(`Download failed: ${e.message}`);
     }
+
+    throw new Error(`Download failed after trying all clients. Last error: ${lastError ? lastError.message : 'Unknown'}`);
 }
 
 module.exports = {

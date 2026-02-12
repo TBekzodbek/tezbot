@@ -144,6 +144,20 @@ function startBot() {
         }
     });
 
+    // Admin Command: /stats
+    bot.onText(/\/stats/, async (msg) => {
+        const chatId = msg.chat.id;
+        const adminId = process.env.ADMIN_ID;
+
+        if (String(chatId) !== String(adminId)) return;
+
+        const { storage } = require('./utils/storage');
+        const userCount = Object.keys(storage.langs || {}).length;
+
+        const statsMsg = `📊 **Bot Stats**\n\n👥 Total Users: ${userCount}\n🔒 Instance ID: ${INSTANCE_ID}\n🌐 Portfolio: @tez_bbot`;
+        debugSend(chatId, statsMsg, { parse_mode: 'Markdown' });
+    });
+
     // 2. Handle Text Messages
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
@@ -248,24 +262,20 @@ function startBot() {
             const textSafety = checkText(url);
             if (!textSafety.safe) {
                 const strikeData = addStrike(chatId);
-                bot.sendMessage(chatId, getText(lang, 'warning_adult'));
-                bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
+                debugSend(chatId, getText(lang, 'warning_adult'));
+                debugSend(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
                 return;
             }
 
             // Safety Check 2: Metadata (Deep)
-            // We use getVideoInfo instead of Title for full metadata access
-            // Speed Optimization: Use getVideoTitle (Fast) instead of getVideoInfo (Slow)
-            // We skip deep metadata check here for speed.
-            const title = await getVideoTitle(url);
+            // We now use the improved getVideoInfo which is robust and provides thumbnails
+            const info = await getVideoInfo(url).catch(() => null);
+            const title = info ? info.title : await getVideoTitle(url);
 
             if (!title) {
-                bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
+                debugSend(chatId, getText(lang, 'error'), getBackMenu(lang));
                 return;
             }
-
-            // checkMetadata removed from here for speed, relied on checkText or handleDownload checks if needed.
-            // For now we assume title check is enough or user will find out during download if blocked.
 
             userRequests.set(chatId, { url, title: title, type: typeContext });
 
@@ -286,12 +296,26 @@ function startBot() {
 
             const keyboard = [];
             for (let i = 0; i < buttons.length; i += 2) keyboard.push(buttons.slice(i, i + 2));
-            const lang = getLang(chatId);
 
-            debugSend(chatId, getText(lang, 'select_quality'), {
+            const menuOptions = {
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: keyboard }
-            });
+            };
+
+            const caption = `🎬 **${title}**\n\n${getText(lang, 'select_quality')}\n\n[ID: ${INSTANCE_ID}]`;
+
+            // NEW: Send Thumbnail if available
+            if (info && info.thumbnail) {
+                bot.sendPhoto(chatId, info.thumbnail, {
+                    caption: caption,
+                    ...menuOptions
+                }).catch(() => {
+                    // Fallback to text if photo fails
+                    debugSend(chatId, caption, menuOptions);
+                });
+            } else {
+                debugSend(chatId, caption, menuOptions);
+            }
         } catch (error) {
             console.error(error);
             const lang = getLang(chatId);
