@@ -144,13 +144,13 @@ function startBot() {
 
         // --- GLOBAL COMMANDS ---
         if (text === getText(lang, 'menu_help')) {
-            bot.sendMessage(chatId, '🤖 @Tez_Bot\n\n1. 🎵 **Music:** Send Artict/Song name.\n2. 📹 **Video:** Send link (YouTube/Instagram).', getMainMenu(lang));
+            bot.sendMessage(chatId, '🤖 @tez_bbot\n\n1. 🎵 **Music:** Send Artist/Song name.\n2. 📹 **Video:** Send link (YouTube/Instagram).', getMainMenu(lang));
             return;
         } else if (text === getText(lang, 'menu_lang')) {
             bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Krill)", callback_data: 'lang_uz_cyrl' }],
+                        [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Кирилл)", callback_data: 'lang_uz_cyrl' }],
                         [{ text: "🇷🇺 Русский", callback_data: 'lang_ru' }, { text: "🇬🇧 English", callback_data: 'lang_en' }]
                     ]
                 }
