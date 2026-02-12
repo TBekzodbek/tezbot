@@ -431,9 +431,13 @@ function startBot() {
             bot.sendChatAction(chatId, type === 'audio' ? 'upload_voice' : 'upload_video');
 
             if (type === 'audio') {
-                await bot.sendAudio(chatId, filePath, { title: title, caption: '🎧 @Tez_Bot' });
+                await bot.sendAudio(chatId, filePath, {
+                    title: title,
+                    performer: '@tez_bbot',
+                    caption: '🎧 @tez_bbot'
+                });
             } else {
-                await bot.sendVideo(chatId, filePath, { caption: `${title}\n\n🤖 @Tez_Bot`, supports_streaming: true });
+                await bot.sendVideo(chatId, filePath, { caption: `${title}\n\n🤖 @tez_bbot`, supports_streaming: true });
             }
 
             await fs.remove(filePath);
