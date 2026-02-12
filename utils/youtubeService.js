@@ -38,7 +38,7 @@ async function searchVideo(query, limit = 5) {
     }
 }
 
-async function searchMusic(query, limit = 20) {
+async function searchMusic(query, limit = 50) {
     const cacheKey = `searchMusic:${query}:${limit}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
@@ -126,7 +126,8 @@ async function downloadMedia(url, type, options = {}) {
             audioFormat: 'mp3',
         });
     } else if (type === 'video') {
-        const formatSelect = height
+        const isNumericHeight = /^\d+$/.test(height);
+        const formatSelect = isNumericHeight
             ? `best[height<=${height}][ext=mp4]/bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/best`
             : 'best[ext=mp4]/best';
 
