@@ -1,6 +1,7 @@
 const youtubedl = require('youtube-dl-exec');
 const path = require('path');
 const NodeCache = require('node-cache');
+const fs = require('fs-extra');
 
 // Initialize Cache (TTL: 1 hour for search/info, 10 mins for titles)
 const cache = new NodeCache({ stdTTL: 3600 });
@@ -14,10 +15,7 @@ const COOKIES_PATH = path.join(__dirname, '../cookies.txt');
 async function searchVideo(query, limit = 5) {
     const cacheKey = `search:${query}:${limit}`;
     const cached = cache.get(cacheKey);
-    if (cached) {
-        console.log('✅ Serving search from cache:', query);
-        return cached;
-    }
+    if (cached) return cached;
 
     try {
         const output = await youtubedl(`ytsearch${limit}:${query}`, {
@@ -27,7 +25,7 @@ async function searchVideo(query, limit = 5) {
             flatPlaylist: true,
             ffmpegLocation: FFMPEG_LOCATION,
             forceIpv4: true,
-            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
+            cookies: fs.existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
         }, {
             youtubeDlBinary: YOUTUBE_DL_BINARY,
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
@@ -40,110 +38,42 @@ async function searchVideo(query, limit = 5) {
     }
 }
 
-async function searchMusic(query, limit = 5) {
-    // 1. Fetch more results to allow filtering
-    // We fetch 3x the limit to have a buffer for rejected items
-    const fetchLimit = limit * 3;
+async function searchMusic(query, limit = 20) {
     const cacheKey = `searchMusic:${query}:${limit}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-        console.log('✅ Serving music search from cache:', query);
-        return cached;
-    }
-
-    try {
-        const output = await youtubedl(`ytsearch${fetchLimit}:${query}`, {
-            dumpSingleJson: true,
-            noWarnings: true,
-            preferFreeFormats: true,
-            flatPlaylist: true,
-            ffmpegLocation: FFMPEG_LOCATION,
-            forceIpv4: true,
-            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
-        }, {
-            youtubeDlBinary: YOUTUBE_DL_BINARY,
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-        });
-
-        const allEntries = output.entries || [];
-
-        // 2. Filter Results
-        const filteredEntries = allEntries.filter(entry => {
-            const title = (entry.title || '').toLowerCase();
-            const duration = entry.duration || 0;
-
-            // Rule 1: Duration 0s - 20 mins (1200s)
-            // Rejects extreme long mixes (>20m) but allows normal songs/extended cuts
-            if (duration > 1200) return false;
-
-            // Rule 2: Negative Keywords
-            // Rejects extraneous content
-            const negativeKeywords = ['reaction', 'review', 'hour loop', '1 hour', '10 hours', 'tushuntirish', 'teoriyasi'];
-            if (negativeKeywords.some(kw => title.includes(kw))) return false;
-
-            return true;
-        });
-
-        // 3. Take top N
-        const finalEntries = filteredEntries.slice(0, limit);
-
-        // Wrap in same structure as searchVideo
-        const result = { ...output, entries: finalEntries };
-
-        // Cache result
-        cache.set(cacheKey, result);
-        return result;
-
-    } catch (e) {
-        throw new Error(`Music Search failed: ${e.message}`);
-    }
-}
-
-async function getVideoTitle(url) {
-    const cacheKey = `title:${url}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
     try {
-        const titlePromise = youtubedl(url, {
-            getTitle: true,
+        const output = await youtubedl(`ytsearch${limit}:${query}`, {
+            dumpSingleJson: true,
             noWarnings: true,
-            noCallHome: true,
-            noPlaylist: true,
-            youtubeSkipDashManifest: true,
+            flatPlaylist: true,
             ffmpegLocation: FFMPEG_LOCATION,
             forceIpv4: true,
-            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
+            cookies: fs.existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
         }, {
             youtubeDlBinary: YOUTUBE_DL_BINARY,
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         });
 
-        // Fast Timeout (2s) - title should be instant
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
-        const title = await Promise.race([titlePromise, timeoutPromise]);
-        const trimmedTitle = title.trim();
-
-        cache.set(cacheKey, trimmedTitle, 600); // 10 min TTL for potential transient titles
-        return trimmedTitle;
+        cache.set(cacheKey, output);
+        return output;
     } catch (e) {
-        // Fallback or rethrow
-        return null;
+        throw new Error(`Music search failed: ${e.message}`);
     }
 }
 
-async function getVideoInfo(url, retries = 1) {
+async function getVideoInfo(url) {
     const cacheKey = `info:${url}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    // Try common clients for metadata
     const clients = ['ios', 'android', 'web'];
 
     for (const client of clients) {
         try {
             console.log(`🔎 Fetching metadata via client: ${client}...`);
-            const infoPromise = youtubedl(url, {
+            const info = await youtubedl(url, {
                 dumpSingleJson: true,
                 noWarnings: true,
                 noCallHome: true,
@@ -152,31 +82,28 @@ async function getVideoInfo(url, retries = 1) {
                 ffmpegLocation: FFMPEG_LOCATION,
                 forceIpv4: true,
                 extractorArgs: `youtube:player_client=${client}`,
-                cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
+                cookies: fs.existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
             }, {
                 youtubeDlBinary: YOUTUBE_DL_BINARY,
                 userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             });
 
-            // Shorter timeout for first client to keep it snappy
-            const timeoutMs = client === 'ios' ? 7000 : 12000;
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeoutMs));
-            const info = await Promise.race([infoPromise, timeoutPromise]);
-
-            // Add thumbnail logic
             if (info && !info.thumbnail && info.thumbnails && info.thumbnails.length > 0) {
-                // Pick highest quality thumbnail
                 info.thumbnail = info.thumbnails.sort((a, b) => (b.width || 0) - (a.width || 0))[0].url;
             }
 
             cache.set(cacheKey, info, 300);
             return info;
         } catch (e) {
-            console.log(`⚠️ Metadata fetch failed for client ${client}: ${e.message}`);
-            continue; // try next client
+            console.log(`⚠️ Metadata fetch failed for ${client}: ${e.message}`);
         }
     }
-    throw new Error('Could not fetch video metadata from any client.');
+    throw new Error('Could not fetch video metadata.');
+}
+
+async function getVideoTitle(url) {
+    const info = await getVideoInfo(url);
+    return info.title;
 }
 
 async function downloadMedia(url, type, options = {}) {
@@ -189,129 +116,88 @@ async function downloadMedia(url, type, options = {}) {
         noWarnings: true,
         noColors: true,
         noProgress: true,
-        // Performance flags
-        concurrentFragments: 16, // Download in 16 parts for speed
-        httpChunkSize: '10M',   // larger chunks
-        resizeBuffer: true,     // Optimize buffer
+        concurrentFragments: 16,
+        httpChunkSize: '10M',
     };
 
     if (type === 'audio') {
         Object.assign(flags, {
             extractAudio: true,
             audioFormat: 'mp3',
-            addMetadata: true,
-            embedThumbnail: true,
         });
     } else if (type === 'video') {
-        // Optimization: Prefer pre-merged best file first (no ffmpeg merge needed = faster)
-        // Fallback to merge if pre-merged not available or quality check fails
         const formatSelect = height
-            ? `best[height=${height}][ext=mp4]/bestvideo[height=${height}][ext=mp4]+bestaudio[ext=m4a]/best[height=${height}]`
+            ? `best[height<=${height}][ext=mp4]/bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/best`
             : 'best[ext=mp4]/best';
 
         Object.assign(flags, {
             format: formatSelect,
             mergeOutputFormat: 'mp4',
         });
-    } else {
-        throw new Error('Invalid download type');
     }
 
-    // Retry strategy with different clients
     const clients = ['ios', 'android', 'web'];
     let lastError = null;
 
     for (const client of clients) {
         try {
+            console.log(`📡 Attempting download with client: ${client}...`);
             const currentFlags = { ...flags, extractorArgs: `youtube:player_client=${client}` };
             const result = await youtubedl(url, currentFlags, {
                 youtubeDlBinary: YOUTUBE_DL_BINARY,
                 userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
+                cookies: fs.existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
             });
 
-            // youtube-dl-exec returns the stdout string directly by default
+            // Extract path from stdout if possible
             const stdout = (typeof result === 'string') ? result : (result.stdout || '');
-
-            // Strip ANSI codes (colors, progress bars) to ensure regex works
-            // eslint-disable-next-line no-control-regex
             const cleanStdout = stdout.replace(/\x1B\[\d+;?\d*m/g, '');
-
-            // Log for debugging
-            console.log('yt-dlp result type:', typeof result);
-            console.log('yt-dlp stdout (cleaned):', cleanStdout);
-
-            // Regex to find "Destination: <path>" or "Merging formats into "<path>"" or "already downloaded"
-            // yt-dlp might output multiple destinations (temp file, then final file after merge/extract)
-
-            // Find all matches for Destination or Merging
-            // catch: [download] Destination: ... or [ExtractAudio] Destination: ... or [Merger] Merging formats into "..."
             const destMatches = [...cleanStdout.matchAll(/(?:Destination:|Merging formats into ")(.+?)(?:"|$)/g)];
-            const alreadyMatches = [...cleanStdout.matchAll(/\[download\]\s+(.+)\s+has already been downloaded/g)];
 
-            let potentialPaths = [];
-
-            // Add already downloaded first (if any)
-            if (alreadyMatches.length > 0) {
-                potentialPaths.push(alreadyMatches[0][1]);
-            }
-
-            // Add destinations (reverse order is usually better as the last one is the final file)
             if (destMatches.length > 0) {
-                for (let i = destMatches.length - 1; i >= 0; i--) {
-                    potentialPaths.push(destMatches[i][1]);
-                }
+                let foundPath = destMatches[destMatches.length - 1][1].trim().replace(/^"/, '').replace(/"$/, '');
+                if (!path.isAbsolute(foundPath)) foundPath = path.resolve(process.cwd(), foundPath);
+                if (fs.existsSync(foundPath)) return foundPath;
             }
 
-            for (let p of potentialPaths) {
-                let foundPath = p.trim();
-                // Clean up quotes if present
-                foundPath = foundPath.replace(/^"/, '').replace(/"$/, '');
-
-                // If path is relative, make it absolute (relative to cwd, which is process.cwd())
-                if (!path.isAbsolute(foundPath)) {
-                    foundPath = path.resolve(process.cwd(), foundPath);
-                }
-
-                // Check if exists
-                if (require('fs-extra').existsSync(foundPath)) {
-                    console.log('✅ Found valid file from stdout:', foundPath);
-                    return foundPath;
-                }
-            }
-
-            console.log('⚠️ Parsed paths did not exist, trying fallback...');
-
-            // Fallback: Check if the template replaced path exists
-            // We check a few common extensions because yt-dlp might have merged into mkv or webm if mp4 failed
+            // Fallback: check the expected output path with different extensions
             const base = outputPath.replace('.%(ext)s', '');
             const extensions = type === 'audio' ? ['.mp3', '.m4a'] : ['.mp4', '.mkv', '.webm'];
-
             for (const ext of extensions) {
                 const fallbackPath = base + ext;
-                if (require('fs-extra').existsSync(fallbackPath)) {
-                    console.log('✅ Found file via fallback strategy:', fallbackPath);
-                    return fallbackPath;
-                }
+                if (fs.existsSync(fallbackPath)) return fallbackPath;
             }
-
-            throw new Error('Could not determine downloaded file path from output.');
-
         } catch (e) {
-            console.log(`⚠️ Download attempt with client ${client} failed: ${e.message}`);
+            console.log(`⚠️ Client ${client} download failed: ${e.message}`);
             lastError = e;
-            // Continue to next client
         }
     }
 
-    throw new Error(`Download failed after trying all clients. Last error: ${lastError ? lastError.message : 'Unknown'}`);
+    // FINAL FALLBACK: Simplest download
+    try {
+        console.log('🔄 All clients failed or path error. Trying final fallback...');
+        await youtubedl(url, { ...flags, format: 'best' }, {
+            youtubeDlBinary: YOUTUBE_DL_BINARY,
+            cookies: fs.existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
+        });
+
+        const base = outputPath.replace('.%(ext)s', '');
+        const exts = ['.mp4', '.mp3', '.m4a', '.webm', '.mkv'];
+        for (const ext of exts) {
+            const fb = base + ext;
+            if (fs.existsSync(fb)) return fb;
+        }
+    } catch (e) {
+        lastError = e;
+    }
+
+    throw new Error(lastError ? lastError.message : 'Download failed completely.');
 }
 
 module.exports = {
     searchVideo,
+    searchMusic,
     getVideoInfo,
     getVideoTitle,
-    getVideoTitle,
     downloadMedia,
-    searchMusic
 };

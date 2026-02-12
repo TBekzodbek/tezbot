@@ -11,6 +11,7 @@ fs.ensureDirSync(DATA_DIR);
 let db = {
     users: {},    // { chatId: { lang: 'uz', state: 'MAIN' } }
     requests: {}, // { chatId: { url, title, type, timestamp } }
+    results: {},  // { chatId: { total: [], page: 0 } }
 };
 
 if (fs.existsSync(DB_FILE)) {
@@ -74,6 +75,19 @@ function setRequest(chatId, data) {
     save();
 }
 
+function getResults(chatId) {
+    return db.results[chatId];
+}
+
+function setResults(chatId, data) {
+    if (data === null) {
+        delete db.results[chatId];
+    } else {
+        db.results[chatId] = data;
+    }
+    save();
+}
+
 // Cleanup old requests (older than 24 hours) to keep DB small
 function cleanup() {
     const now = Date.now();
@@ -98,5 +112,7 @@ module.exports = {
     getState,
     setState,
     getRequest,
-    setRequest
+    setRequest,
+    getResults,
+    setResults
 };

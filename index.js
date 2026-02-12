@@ -11,7 +11,7 @@ const { searchVideo, searchMusic, getVideoInfo, getVideoTitle, downloadMedia } =
 const { recognizeAudio } = require('./utils/shazamService');
 const { getText } = require('./utils/localization');
 const { checkText, checkMetadata, addStrike, isUserBlocked, resetStrikes } = require('./utils/moderation');
-const { getLang, setLang, getState, setState, getRequest, setRequest } = require('./utils/storage');
+const { getLang, setLang, getState, setState, getRequest, setRequest, getResults, setResults } = require('./utils/storage');
 
 // GLOBAL ERROR HANDLERS
 process.on('uncaughtException', (error) => {
@@ -273,11 +273,12 @@ function startBot() {
             }
 
             const searchKeyboard = [];
-            entries.forEach((entry, index) => {
+            const pageResults = entries.slice(0, 10);
+
+            pageResults.forEach((entry, index) => {
                 const title = entry.title.substring(0, 50);
                 const videoId = entry.id;
 
-                // Format Duration
                 let durationStr = '';
                 if (entry.duration) {
                     const date = new Date(0);
@@ -285,9 +286,14 @@ function startBot() {
                     const timeString = date.toISOString().substr(14, 5);
                     durationStr = ` (${timeString})`;
                 }
-
                 searchKeyboard.push([{ text: `${index + 1}. ${title}${durationStr}`, callback_data: `sel_${videoId}` }]);
             });
+
+            // Add Next Button if there are more than 10 results
+            if (entries.length > 10) {
+                setResults(chatId, { total: entries, page: 1 });
+                searchKeyboard.push([{ text: "➡️ Keyingisi / Next", callback_data: `next_results` }]);
+            }
 
             debugSend(chatId, `🎶 **Natijalar:**`, {
                 parse_mode: 'Markdown',
@@ -340,10 +346,8 @@ function startBot() {
             setRequest(chatId, { url, title: title, type: typeContext });
 
             const targetResolutions = [
-                { label: '1080p Full HD', val: 1080 },
                 { label: '720p HD', val: 720 },
-                { label: '480p', val: 480 },
-                { label: '360p', val: 360 }
+                { label: 'Sifatli / Best', val: 'best' }
             ];
 
             const buttons = [];
@@ -402,10 +406,50 @@ function startBot() {
         if (data.startsWith('lang_')) {
             const selectedLang = data.replace('lang_', '');
             setLang(chatId, selectedLang);
-            debugSend(chatId, getText(selectedLang, 'welcome'), {
+            bot.sendMessage(chatId, getText(selectedLang, 'welcome'), {
                 parse_mode: 'Markdown',
                 ...getMainMenu(selectedLang)
             });
+            return;
+        }
+
+        // --- PAGINATION ---
+        if (data === 'next_results') {
+            const results = getResults(chatId);
+            if (!results) return;
+
+            const { total, page } = results;
+            const startLimit = page * 10;
+            const nextBatch = total.slice(startLimit, startLimit + 10);
+
+            if (nextBatch.length === 0) {
+                bot.answerCallbackQuery(query.id, { text: "Boshqa natija yo'q" });
+                return;
+            }
+
+            const searchKeyboard = [];
+            nextBatch.forEach((entry, index) => {
+                const title = entry.title.substring(0, 50);
+                const videoId = entry.id;
+                let durationStr = '';
+                if (entry.duration) {
+                    const date = new Date(0);
+                    date.setSeconds(entry.duration);
+                    const timeString = date.toISOString().substr(14, 5);
+                    durationStr = ` (${timeString})`;
+                }
+                searchKeyboard.push([{ text: `${startLimit + index + 1}. ${title}${durationStr}`, callback_data: `sel_${videoId}` }]);
+            });
+
+            const hasMore = total.length > startLimit + 10;
+            if (hasMore) {
+                setResults(chatId, { total, page: page + 1 });
+                searchKeyboard.push([{ text: "➡️ Keyingisi / Next", callback_data: `next_results` }]);
+            } else {
+                setResults(chatId, null);
+            }
+
+            bot.editMessageReplyMarkup({ inline_keyboard: searchKeyboard }, { chatId, message_id: query.message.message_id });
             return;
         }
 
@@ -556,7 +600,8 @@ function startBot() {
 
         } catch (error) {
             console.error('Download Error:', error);
-            debugSend(chatId, getText(lang, 'error'), getBackMenu(lang));
+            const errMsg = error.message.substring(0, 120);
+            bot.sendMessage(chatId, `${getText(lang, 'error')}\n\n⚠️ Detail: ${errMsg}`, getBackMenu(lang));
         }
     }
 
