@@ -41,7 +41,7 @@ const TEXTS = {
         label_year: "📅 Yil",
 
         // Safety
-        warning_adult: "🚫 **Kechirasiz, ushbu ma'lumot 18+ chekloviga ega yoki noto'g'ri so'zlarni o'z ichiga oladi.**\n\nBiz pornografik va zararli kontent tarqalishiga qarshimiz.",
+        warning_adult: "🚫 **Kechirasiz, ushbu kontent 18+ chekloviga ega yoki noto'g'ri so'zlarni o'z ichiga oladi.**\n\nBiz pornografik va zararli kontent tarqalishiga qarshimiz.",
         warning_strike: "⚠️ **Ogohlantirish!** ({count}/3)\nIltimos, botdan to'g'ri maqsadda foydalaning. Aks holda bloklanasiz.",
         user_blocked: "🚫 **Siz bloklandingiz.**\nBotdan foydalanish qoidalari buzilgani sababli cheklov qo'yildi."
     },
@@ -84,7 +84,12 @@ const TEXTS = {
         label_artist: "🎤 Ижрочи",
         label_title: "🎵 Номи",
         label_album: "💿 Альбом",
-        label_year: "📅 Йил"
+        label_year: "📅 Йил",
+
+        // Safety
+        warning_adult: "🚫 **Кечирасиз, ушбу контент 18+ чекловига эга ёки нотўғри сўзларни ўз ичига олади.**\n\nБиз порнографик ва зарарли контент тарқалишига қаршимиз.",
+        warning_strike: "⚠️ **Огоҳлантириш!** ({count}/3)\nИлтимос, ботдан тўғри мақсадда фойдаланинг. Акс ҳолда блокланасиз.",
+        user_blocked: "🚫 **Сиз блокландингиз.**\nБотдан фойдаланиш қоидалари бузилгани сабабли чеклов қўйилди."
     },
     ru: {
         welcome: "🌟 **Привет! Добро пожаловать в TEZ BOT!**\n\n🤖 С моей помощью вы можете:\n• Скачивать видео с YouTube, Instagram, TikTok 📥\n• Находить музыку и аудиокниги 🎧\n• Конвертировать видео в аудио формат.\n\n👇 **Выберите из меню для продолжения:**",
@@ -125,7 +130,12 @@ const TEXTS = {
         label_artist: "🎤 Исполнитель",
         label_title: "🎵 Название",
         label_album: "💿 Альбом",
-        label_year: "📅 Год"
+        label_year: "📅 Год",
+
+        // Safety
+        warning_adult: "🚫 **Извините, этот контент имеет возрастное ограничение 18+ или содержит недопустимые слова.**\n\nМы против распространения порнографии и вредоносного контента.",
+        warning_strike: "⚠️ **Предупреждение!** ({count}/3)\nПожалуйста, используйте бот по назначению. В противном случае вы будете заблокированы.",
+        user_blocked: "🚫 **Вы заблокированы.**\nДоступ ограничен из-за нарушения правил использования бота."
     },
     en: {
         welcome: "🌟 **Hello! Welcome to TEZ BOT!**\n\n🤖 With me you can:\n• Download videos from YouTube, Instagram, TikTok 📥\n• Find music and audiobooks 🎧\n• Convert videos to audio format.\n\n👇 **Select from the menu to continue:**",
@@ -166,7 +176,12 @@ const TEXTS = {
         label_artist: "🎤 Artist",
         label_title: "🎵 Title",
         label_album: "💿 Album",
-        label_year: "📅 Year"
+        label_year: "📅 Year",
+
+        // Safety
+        warning_adult: "🚫 **Sorry, this content is restricted (18+) or contains inappropriate words.**\n\nWe are against the spread of pornography and harmful content.",
+        warning_strike: "⚠️ **Warning!** ({count}/3)\nPlease use the bot for its intended purpose. Otherwise, you will be banned.",
+        user_blocked: "🚫 **You have been blocked.**\nAccess is restricted due to violation of bot usage rules."
     }
 };
 
