@@ -25,7 +25,9 @@ process.on('unhandledRejection', (reason, promise) => {
 // Initialize Bot
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
-    console.error('TELEGRAM_BOT_TOKEN is not defined in .env file');
+    console.error('❌ ERROR: TELEGRAM_BOT_TOKEN is not defined!');
+    console.error('ℹ️  Available Environment Variables (Keys only):', Object.keys(process.env).join(', '));
+    console.error('👉 Please check your Railway/Heroku settings and ensure "TELEGRAM_BOT_TOKEN" is added exactly.');
     process.exit(1);
 }
 
