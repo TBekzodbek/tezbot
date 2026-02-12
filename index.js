@@ -60,10 +60,33 @@ const STATES = {
     WAITING_AUDIO: 'WAITING_AUDIO'
 };
 
-// userStates is now managed by storage.js
+// Graceful Shutdown Handler
+let globalBot = null;
+
+async function shutdown(signal) {
+    console.log(`\n🛑 [ID: ${INSTANCE_ID}] ${signal} qabul qilindi. Bot yopilmoqda...`);
+    if (globalBot) {
+        await globalBot.stopPolling();
+        console.log('✅ Polling to\'xtatildi.');
+    }
+    server.close(() => {
+        console.log('✅ Server yopildi.');
+        process.exit(0);
+    });
+
+    // Fallback exit if server doesn't close
+    setTimeout(() => {
+        console.log('⚠️ Majburiy yopilish...');
+        process.exit(1);
+    }, 5000);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 function startBot() {
     const bot = new TelegramBot(token, { polling: true });
+    globalBot = bot;
 
     // Clear Webhooks if the method exists (prevents conflicts)
     const delWebhook = bot.deleteWebhook || bot.deleteWebHook;
