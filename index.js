@@ -333,11 +333,13 @@ function startBot() {
             const stopAction = sendActionLoop(chatId, 'upload_voice');
 
             // Auto-download Audio for music search
-            handleDownload(chatId, videoUrl, 'audio', { outputPath: 'temp' })
-                .then(() => {
-                    // handleDownload now sends the 'done' message with appropriate menu
-                    // No additional Done message needed here
-                })
+            handleDownload(chatId, videoUrl, 'audio', { outputPath: 'temp' }, null, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: getText(lang, 'search_again'), callback_data: 'reset_music' }],
+                    ]
+                }
+            })
                 .finally(() => {
                     stopAction(); // Stop the action loop
                 });
@@ -422,7 +424,7 @@ function startBot() {
         }
     });
 
-    async function handleDownload(chatId, url, type, options, title) {
+    async function handleDownload(chatId, url, type, options, title, customMenu = null) {
         const lang = getLang(chatId);
         try {
             const filePath = await downloadMedia(url, type, options);
@@ -441,18 +443,19 @@ function startBot() {
 
             if (type === 'audio') {
                 await bot.sendAudio(chatId, filePath, {
-                    title: title,
+                    title: title || 'Audio',
                     performer: '@tez_bbot',
                     caption: `🎧 @tez_bbot [ID: ${INSTANCE_ID}]`
                 });
             } else {
-                await bot.sendVideo(chatId, filePath, { caption: `${title}\n\n🤖 @tez_bbot [ID: ${INSTANCE_ID}]`, supports_streaming: true });
+                await bot.sendVideo(chatId, filePath, { caption: `${title || 'Video'}\n\n🤖 @tez_bbot [ID: ${INSTANCE_ID}]`, supports_streaming: true });
             }
 
             await fs.remove(filePath);
 
-            // After download, show Home button
-            debugSend(chatId, getText(lang, 'done'), getBackMenu(lang));
+            // After download, show Home button or Custom Menu
+            const finalMenu = customMenu || getBackMenu(lang);
+            debugSend(chatId, getText(lang, 'done'), finalMenu);
 
         } catch (error) {
             console.error('Download Error:', error);
