@@ -37,6 +37,8 @@ const PORT = 3001;
 
 const server = app.listen(PORT, () => {
     console.log(`TEZ BOT ishga tushdi (v2.0 - State Machine)... Port: ${PORT}`);
+    const INSTANCE_ID = Math.floor(Math.random() * 10000);
+    console.log(`🔒 INSTANCE ID: ${INSTANCE_ID} (Check if you see multiple different IDs in logs)`);
     startBot();
 });
 

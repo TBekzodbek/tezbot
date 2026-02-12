@@ -1,0 +1,8 @@
+Error Message:
+Download failed: ERROR: [youtube] bt_-QuzVKpI: Sign in to confirm you�re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies
+
+Stack:
+Error: Download failed: ERROR: [youtube] bt_-QuzVKpI: Sign in to confirm you�re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies
+    at downloadMedia (C:\Users\Jaloliddin\.gemini\antigravity\scratch\tez_bot\utils\youtubeService.js:280:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async testDownload (C:\Users\Jaloliddin\.gemini\antigravity\scratch\tez_bot\repro_download.js:17:26)

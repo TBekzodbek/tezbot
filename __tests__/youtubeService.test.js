@@ -50,7 +50,7 @@ describe('YouTube Service', () => {
                 extractAudio: true,
                 audioFormat: 'mp3',
                 noColors: true,
-                concurrentFragments: 4
+                concurrentFragments: 16
             }),
             expect.any(Object)
         );

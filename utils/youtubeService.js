@@ -9,6 +9,7 @@ const cache = new NodeCache({ stdTTL: 3600 });
 const isWin = process.platform === 'win32';
 const YOUTUBE_DL_BINARY = isWin ? path.join(__dirname, '../yt-dlp.exe') : 'yt-dlp';
 const FFMPEG_LOCATION = path.join(__dirname, '../bin');
+const COOKIES_PATH = path.join(__dirname, '../cookies.txt');
 
 async function searchVideo(query, limit = 5) {
     const cacheKey = `search:${query}:${limit}`;
@@ -25,9 +26,11 @@ async function searchVideo(query, limit = 5) {
             preferFreeFormats: true,
             flatPlaylist: true,
             ffmpegLocation: FFMPEG_LOCATION,
-            forceIpv4: true // Optimize DNS
+            forceIpv4: true,
+            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
         }, {
-            youtubeDlBinary: YOUTUBE_DL_BINARY
+            youtubeDlBinary: YOUTUBE_DL_BINARY,
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         });
 
         cache.set(cacheKey, output);
@@ -55,9 +58,11 @@ async function searchMusic(query, limit = 5) {
             preferFreeFormats: true,
             flatPlaylist: true,
             ffmpegLocation: FFMPEG_LOCATION,
-            forceIpv4: true
+            forceIpv4: true,
+            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
         }, {
-            youtubeDlBinary: YOUTUBE_DL_BINARY
+            youtubeDlBinary: YOUTUBE_DL_BINARY,
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         });
 
         const allEntries = output.entries || [];
@@ -107,9 +112,11 @@ async function getVideoTitle(url) {
             noPlaylist: true,
             youtubeSkipDashManifest: true,
             ffmpegLocation: FFMPEG_LOCATION,
-            forceIpv4: true
+            forceIpv4: true,
+            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
         }, {
-            youtubeDlBinary: YOUTUBE_DL_BINARY
+            youtubeDlBinary: YOUTUBE_DL_BINARY,
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         });
 
         // Fast Timeout (2s) - title should be instant
@@ -140,15 +147,17 @@ async function getVideoInfo(url, retries = 2) {
                 preferFreeFormats: true,
                 youtubeSkipDashManifest: true,
                 ffmpegLocation: FFMPEG_LOCATION,
-                forceIpv4: true, // Already present
-                concurrentFragments: 16, // Increased for speed
-                httpChunkSize: '10M' // Optimize chunk size
+                forceIpv4: true,
+                concurrentFragments: 16,
+                httpChunkSize: '10M',
+                cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
             }, {
-                youtubeDlBinary: YOUTUBE_DL_BINARY
+                youtubeDlBinary: YOUTUBE_DL_BINARY,
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             });
 
-            // Timeout wrapper (5s)
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
+            // Timeout wrapper (10s)
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000));
             const info = await Promise.race([infoPromise, timeoutPromise]);
 
             cache.set(cacheKey, info, 300); // 5 min TTL
@@ -200,7 +209,9 @@ async function downloadMedia(url, type, options = {}) {
 
     try {
         const result = await youtubedl(url, flags, {
-            youtubeDlBinary: YOUTUBE_DL_BINARY
+            youtubeDlBinary: YOUTUBE_DL_BINARY,
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            cookies: require('fs').existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined
         });
 
         // youtube-dl-exec returns the stdout string directly by default
