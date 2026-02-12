@@ -11,6 +11,7 @@ const { searchVideo, getVideoInfo, getVideoTitle, downloadMedia } = require('./u
 const { recognizeAudio } = require('./utils/shazamService');
 const { getText } = require('./utils/localization');
 const { checkText, checkMetadata, addStrike, isUserBlocked, resetStrikes } = require('./utils/moderation');
+const { getLang, setLang, getState, setState } = require('./utils/storage');
 
 // GLOBAL ERROR HANDLERS
 process.on('uncaughtException', (error) => {
@@ -53,7 +54,7 @@ const STATES = {
     WAITING_AUDIO: 'WAITING_AUDIO'
 };
 
-const userStates = new Map();
+// userStates is now managed by storage.js
 
 function startBot() {
     const bot = new TelegramBot(token, { polling: true });
@@ -61,17 +62,11 @@ function startBot() {
     fs.ensureDirSync(DOWNLOADS_DIR);
 
     // Helpers
-    const userSettings = new Map(); // { chatId: { lang: 'uz' } }
+    // State and Language management is now handled by storage.js
 
-    const getLang = (chatId) => (userSettings.get(chatId) || {}).lang || 'uz';
-    const setLang = (chatId, lang) => {
-        const settings = userSettings.get(chatId) || {};
-        settings.lang = lang;
-        userSettings.set(chatId, settings);
-    };
-
-    const setUserState = (chatId, state) => userStates.set(chatId, state);
-    const getUserState = (chatId) => userStates.get(chatId) || STATES.MAIN;
+    // Aliases to match existing code usage
+    const setUserState = setState;
+    const getUserState = getState;
 
     const getMainMenu = (lang) => ({
         reply_markup: {
