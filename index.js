@@ -368,24 +368,10 @@ function startBot() {
 
             setRequest(chatId, { url, title: title, type: typeContext });
 
-            const targetResolutions = [
-                { label: '720p HD', val: 720 },
-                { label: 'Sifatli / Best', val: 'best' }
+            const keyboard = [
+                [{ text: '📹 Video', callback_data: 'target_video' }, { text: '🎵 Audio', callback_data: 'target_mp3' }],
+                [{ text: '❌ Bekor qilish', callback_data: 'cancel_req' }]
             ];
-
-            const buttons = [];
-            targetResolutions.forEach(res => {
-                buttons.push({ text: `📹 ${res.label}`, callback_data: `video_${res.val}` });
-            });
-
-            // Add Audio Button
-            buttons.push({ text: '🎵 Audio (MP3)', callback_data: 'target_mp3' });
-
-            const keyboard = [];
-            for (let i = 0; i < buttons.length; i += 2) keyboard.push(buttons.slice(i, i + 2));
-
-            // Add Global Cancel Button
-            keyboard.push([{ text: '❌ Bekor qilish', callback_data: 'cancel_req' }]);
 
             const menuOptions = {
                 parse_mode: 'Markdown',
@@ -568,11 +554,9 @@ function startBot() {
 
         if (data === 'target_mp3') {
             type = 'audio';
-        } else if (data === 'target_m4a') {
-            type = 'audio';
-        } else if (data.startsWith('video_')) {
+        } else if (data === 'target_video') {
             type = 'video';
-            options.height = data.split('_')[1];
+            options.height = 'best';
         }
 
         const actionType = type === 'audio' ? 'upload_voice' : 'upload_video';
