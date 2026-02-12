@@ -1,6 +1,6 @@
 const TEXTS = {
     uz: {
-        welcome: "🌟 **Assalomu alaykum! TEZ BOT ga xush kelibsiz!**\n\n🤖 Men orqali siz:\n• YouTube, Instagram, TikTok dan video bukashingiz 📥\n• Musiqa va audio kitoblar topishingiz 🎧\n• Videolarni audio formatga o'girishingiz mumkin.\n\n👇 **Davom etish uchun menyudan tanlang:**",
+        welcome: "🌟 **Assalomu alaykum! TEZ BOT ga xush kelibsiz!**\n\n🤖 Men orqali siz:\n• YouTube, Instagram, TikTok dan video yuklashingiz 📥\n• Musiqa va audio kitoblar topishingiz 🎧\n• Videolarni audio formatga o'girishingiz mumkin.\n\n👇 **Davom etish uchun menyudan tanlang:**",
         main_menu: "Asosiy menyu",
         menu_music: "🎵 Musiqa topish",
         menu_video: "🎬 Video yuklash",
