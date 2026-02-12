@@ -114,8 +114,9 @@ function startBot() {
     const getUserState = getState;
 
     const debugSend = (chatId, text, options = {}) => {
-        const debugText = `[ID: ${INSTANCE_ID}] ${text}`;
-        return bot.sendMessage(chatId, debugText, options);
+        // Log with ID for debugging, but send clean text to user
+        console.log(`📡 [ID: ${INSTANCE_ID}] Sending to ${chatId}: ${text.substring(0, 50)}...`);
+        return bot.sendMessage(chatId, text, options);
     };
 
     const getMainMenu = (lang) => ({
@@ -211,9 +212,8 @@ function startBot() {
         }
 
         // --- GLOBAL COMMANDS ---
-        // --- GLOBAL COMMANDS ---
         if (text === getText(lang, 'menu_lang')) {
-            debugSend(chatId, "🇺🇿 Tilni tanlang:", {
+            bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Кирилл)", callback_data: 'lang_uz_cyrl' }],
@@ -221,6 +221,13 @@ function startBot() {
                     ]
                 }
             });
+            return;
+        }
+
+        if (text === getText(lang, 'menu_back')) {
+            setUserState(chatId, STATES.MAIN);
+            setRequest(chatId, null);
+            bot.sendMessage(chatId, getText(lang, 'welcome'), getMainMenu(lang));
             return;
         }
 
@@ -238,7 +245,7 @@ function startBot() {
         // --- SMART HANDLING (MAIN STATE) ---
         // 1. Check if URL -> Video Download
         if (text.match(/https?:\/\//)) {
-            debugSend(chatId, getText(lang, 'downloading'));
+            // debugSend removed here because processUrl sends its own status
             processUrl(chatId, text, 'video');
             return;
         }
@@ -257,7 +264,7 @@ function startBot() {
         // Non-blocking search
         const searchQuery = `${text} audio`;
 
-        searchMusic(searchQuery, 5).then(output => {
+        searchMusic(searchQuery, 10).then(output => {
             const entries = output.entries || (Array.isArray(output) ? output : [output]);
 
             if (!entries || entries.length === 0) {
@@ -358,7 +365,7 @@ function startBot() {
                 reply_markup: { inline_keyboard: keyboard }
             };
 
-            const caption = `🎬 **${title}**\n\n${getText(lang, 'select_quality')}\n\n[ID: ${INSTANCE_ID}]`;
+            const caption = `🎬 **${title}**\n\n${getText(lang, 'select_quality')}`;
 
             // NEW: Send Thumbnail if available
             if (info && info.thumbnail) {
@@ -367,10 +374,10 @@ function startBot() {
                     ...menuOptions
                 }).catch(() => {
                     // Fallback to text if photo fails
-                    debugSend(chatId, caption, menuOptions);
+                    bot.sendMessage(chatId, caption, menuOptions);
                 });
             } else {
-                debugSend(chatId, caption, menuOptions);
+                bot.sendMessage(chatId, caption, menuOptions);
             }
         } catch (error) {
             console.error(error);
@@ -532,10 +539,10 @@ function startBot() {
                 await bot.sendAudio(chatId, filePath, {
                     title: title || 'Audio',
                     performer: '@tez_bbot',
-                    caption: `🎧 @tez_bbot [ID: ${INSTANCE_ID}]`
+                    caption: `🎧 @tez_bbot`
                 });
             } else {
-                await bot.sendVideo(chatId, filePath, { caption: `${title || 'Video'}\n\n🤖 @tez_bbot [ID: ${INSTANCE_ID}]`, supports_streaming: true });
+                await bot.sendVideo(chatId, filePath, { caption: `${title || 'Video'}\n\n🤖 @tez_bbot`, supports_streaming: true });
             }
 
             await fs.remove(filePath);
