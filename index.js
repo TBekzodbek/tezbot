@@ -72,11 +72,24 @@ function startBot() {
 
     bot.on('polling_error', (error) => {
         if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
-            console.error(`⚠️ [ID: ${INSTANCE_ID}] Polling Conflict: Boshqa bot instance ishlab turibdi!`);
+            console.error(`⚠️ [ID: ${INSTANCE_ID}] Polling Conflict: Boshqa bot instance ishlab turibdi! Iltimos, boshqa botlarni o'chiring.`);
         } else {
             console.error(`⚠️ [ID: ${INSTANCE_ID}] Polling Error:`, error.message);
         }
     });
+
+    // Connection Verification
+    bot.getMe().then((me) => {
+        console.log(`✅ [ID: ${INSTANCE_ID}] Bot muvaffaqiyatli ulandi! Username: @${me.username}`);
+        console.log(`📡 [ID: ${INSTANCE_ID}] Polling boshlandi...`);
+    }).catch(err => {
+        console.error(`❌ [ID: ${INSTANCE_ID}] Bot ulanishda xatolik:`, err.message);
+    });
+
+    // Heartbeat Log (Every 60 seconds)
+    setInterval(() => {
+        console.log(`💓 [ID: ${INSTANCE_ID}] Bot holati - OK (Polling: ${bot.isPolling()})`);
+    }, 60000);
 
     const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
     fs.ensureDirSync(DOWNLOADS_DIR);
