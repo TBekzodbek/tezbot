@@ -73,7 +73,7 @@ function startBot() {
     const getMainMenu = (lang) => ({
         reply_markup: {
             keyboard: [
-                [getText(lang, 'menu_help'), getText(lang, 'menu_lang')]
+                [getText(lang, 'menu_lang')]
             ],
             resize_keyboard: true
         }
@@ -145,10 +145,8 @@ function startBot() {
         }
 
         // --- GLOBAL COMMANDS ---
-        if (text === getText(lang, 'menu_help')) {
-            bot.sendMessage(chatId, getText(lang, 'help_text'), getMainMenu(lang));
-            return;
-        } else if (text === getText(lang, 'menu_lang')) {
+        // --- GLOBAL COMMANDS ---
+        if (text === getText(lang, 'menu_lang')) {
             bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
                 reply_markup: {
                     inline_keyboard: [

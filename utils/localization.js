@@ -1,6 +1,6 @@
 const TEXTS = {
     uz: {
-        welcome: "🌟 **Assalomu alaykum! TEZ BOT ga xush kelibsiz!**\n\n🤖 Men orqali siz:\n• YouTube, Instagram, TikTok dan video yuklashingiz 📥\n• Musiqa va audio kitoblar topishingiz 🎧\n• Videolarni audio formatga o'girishingiz mumkin.\n\n👇 **Davom etish uchun menyudan tanlang:**",
+        welcome: "🌟 **Assalomu alaykum! TEZ BOT ga xush kelibsiz!**\n\n🤖 **Men orqali siz:**\n• YouTube, Instagram, TikTok dan video yuklashingiz 📥\n• Musiqa va audio kitoblar topishingiz 🎧\n\n👇 **Foydalanish uchun:**\n\n1. 🎵 **Musiqa:** Ijrochi yoki qo'shiq nomini yuboring.\n2. 📹 **Video:** Havolani (link) yuboring (YouTube/Instagram).",
         main_menu: "Asosiy menyu",
         menu_music: "🎵 Musiqa topish",
         menu_video: "🎬 Video yuklash",
@@ -46,7 +46,7 @@ const TEXTS = {
         user_blocked: "🚫 **Siz bloklandingiz.**\nBotdan foydalanish qoidalari buzilgani sababli cheklov qo'yildi."
     },
     uz_cyrl: {
-        welcome: "🌟 **Ассалому алайкум! TEZ BOT га хуш келибсиз!**\n\n🤖 Мен орқали сиз:\n• YouTube, Instagram, TikTok дан видео юклашингиз 📥\n• Мусиқа ва аудио китоблар топишингиз 🎧\n• Видеоларни аудио форматга ўгиришингиз мумкин.\n\n👇 **Давом этиш учун менюдан танланг:**",
+        welcome: "🌟 **Ассалому алайкум! TEZ BOT га хуш келибсиз!**\n\n🤖 **Мен орқали сиз:**\n• YouTube, Instagram, TikTok дан видео юклашингиз 📥\n• Мусиқа ва аудио китоблар топишингиз 🎧\n\n👇 **Фойдаланиш учун:**\n\n1. 🎵 **Мусиқа:** Ижрочи ёки қўшиқ номини юборинг.\n2. 📹 **Видео:** Ҳаволани (link) юборинг (YouTube/Instagram).",
         main_menu: "Асосий меню",
         menu_music: "🎵 Мусиқа топиш",
         menu_video: "🎬 Видео юклаш",
@@ -92,7 +92,7 @@ const TEXTS = {
         user_blocked: "🚫 **Сиз блокландингиз.**\nБотдан фойдаланиш қоидалари бузилгани сабабли чеклов қўйилди."
     },
     ru: {
-        welcome: "🌟 **Привет! Добро пожаловать в TEZ BOT!**\n\n🤖 С моей помощью вы можете:\n• Скачивать видео с YouTube, Instagram, TikTok 📥\n• Находить музыку и аудиокниги 🎧\n• Конвертировать видео в аудио формат.\n\n👇 **Выберите из меню для продолжения:**",
+        welcome: "🌟 **Привет! Добро пожаловать в TEZ BOT!**\n\n🤖 **Я умею:**\n• Скачивать видео с YouTube, Instagram, TikTok 📥\n• Находить музыку и аудиокниги 🎧\n\n👇 **Как пользоваться:**\n\n1. 🎵 **Музыка:** Отправьте имя исполнителя или название песни.\n2. 📹 **Видео:** Отправьте ссылку (YouTube/Instagram).",
         main_menu: "Главное меню",
         menu_music: "🎵 Найти музыку",
         menu_video: "🎬 Скачать видео",
@@ -138,7 +138,7 @@ const TEXTS = {
         user_blocked: "🚫 **Вы заблокированы.**\nДоступ ограничен из-за нарушения правил использования бота."
     },
     en: {
-        welcome: "🌟 **Hello! Welcome to TEZ BOT!**\n\n🤖 With me you can:\n• Download videos from YouTube, Instagram, TikTok 📥\n• Find music and audiobooks 🎧\n• Convert videos to audio format.\n\n👇 **Select from the menu to continue:**",
+        welcome: "🌟 **Hello! Welcome to TEZ BOT!**\n\n🤖 **I can:**\n• Download videos from YouTube, Instagram, TikTok 📥\n• Find music and audiobooks 🎧\n\n👇 **How to use:**\n\n1. 🎵 **Music:** Send Artist/Song name.\n2. 📹 **Video:** Send link (YouTube/Instagram).",
         main_menu: "Main Menu",
         menu_music: "🎵 Find Music",
         menu_video: "🎬 Download Video",
