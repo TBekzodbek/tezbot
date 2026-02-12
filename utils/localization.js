@@ -43,7 +43,11 @@ const TEXTS = {
         // Safety
         warning_adult: "🚫 **Kechirasiz, ushbu kontent 18+ chekloviga ega yoki noto'g'ri so'zlarni o'z ichiga oladi.**\n\nBiz pornografik va zararli kontent tarqalishiga qarshimiz.",
         warning_strike: "⚠️ **Ogohlantirish!** ({count}/3)\nIltimos, botdan to'g'ri maqsadda foydalaning. Aks holda bloklanasiz.",
-        user_blocked: "🚫 **Siz bloklandingiz.**\nBotdan foydalanish qoidalari buzilgani sababli cheklov qo'yildi."
+        user_blocked: "🚫 **Siz bloklandingiz.**\nBotdan foydalanish qoidalari buzilgani sababli cheklov qo'yildi.",
+
+        menu_share: "📣 Botni ulashish",
+        share_text: "🚀 **Tez Bot** - Eng tezkor YouTube va Music yuklovchi bot!\n\nBotni bu yerda topishingiz mumkin: @{username}",
+        btn_share: "📲 Ulashish"
     },
     uz_cyrl: {
         welcome: "🌟 **Ассалому алайкум! TEZ BOT га хуш келибсиз!**\n\n🤖 **Мен орқали сиз:**\n• YouTube, Instagram, TikTok дан видео юклашингиз 📥\n• Мусиқа ва аудио китоблар топишингиз 🎧\n\n👇 **Фойдаланиш учун:**\n\n1. 🎵 **Мусиқа:** Ижрочи ёки қўшиқ номини юборинг.\n2. 📹 **Видео:** Ҳаволани (link) юборинг (YouTube/Instagram).",
@@ -89,7 +93,11 @@ const TEXTS = {
         // Safety
         warning_adult: "🚫 **Кечирасиз, ушбу контент 18+ чекловига эга ёки нотўғри сўзларни ўз ичига олади.**\n\nБиз порнографик ва зарарли контент тарқалишига қаршимиз.",
         warning_strike: "⚠️ **Огоҳлантириш!** ({count}/3)\nИлтимос, ботдан тўғри мақсадда фойдаланинг. Акс ҳолда блокланасиз.",
-        user_blocked: "🚫 **Сиз блокландингиз.**\nБотдан фойдаланиш қоидалари бузилгани сабабли чеклов қўйилди."
+        user_blocked: "🚫 **Сиз блокландингиз.**\nБотдан фойдаланиш қоидалари бузилгани сабабли чеклов қўйилди.",
+
+        menu_share: "📣 Ботни улашиш",
+        share_text: "🚀 **Tez Bot** - Энг тезкор YouTube ва Music юкловчи бот!\n\nБотни бу ерда топишингиз мумкин: @{username}",
+        btn_share: "📲 Улашиш"
     },
     ru: {
         welcome: "🌟 **Привет! Добро пожаловать в TEZ BOT!**\n\n🤖 **Я умею:**\n• Скачивать видео с YouTube, Instagram, TikTok 📥\n• Находить музыку и аудиокниги 🎧\n\n👇 **Как пользоваться:**\n\n1. 🎵 **Музыка:** Отправьте имя исполнителя или название песни.\n2. 📹 **Видео:** Отправьте ссылку (YouTube/Instagram).",
@@ -135,7 +143,11 @@ const TEXTS = {
         // Safety
         warning_adult: "🚫 **Извините, этот контент имеет возрастное ограничение 18+ или содержит недопустимые слова.**\n\nМы против распространения порнографии и вредоносного контента.",
         warning_strike: "⚠️ **Предупреждение!** ({count}/3)\nПожалуйста, используйте бот по назначению. В противном случае вы будете заблокированы.",
-        user_blocked: "🚫 **Вы заблокированы.**\nДоступ ограничен из-за нарушения правил использования бота."
+        user_blocked: "🚫 **Вы заблокированы.**\nДоступ ограничен из-за нарушения правил использования бота.",
+
+        menu_share: "📣 Поделиться ботом",
+        share_text: "🚀 **Tez Bot** - Самый быстрый бот для скачивания с YouTube и музыки!\n\nВы можете найти бота здесь: @{username}",
+        btn_share: "📲 Поделиться"
     },
     en: {
         welcome: "🌟 **Hello! Welcome to TEZ BOT!**\n\n🤖 **I can:**\n• Download videos from YouTube, Instagram, TikTok 📥\n• Find music and audiobooks 🎧\n\n👇 **How to use:**\n\n1. 🎵 **Music:** Send Artist/Song name.\n2. 📹 **Video:** Send link (YouTube/Instagram).",
@@ -181,7 +193,11 @@ const TEXTS = {
         // Safety
         warning_adult: "🚫 **Sorry, this content is restricted (18+) or contains inappropriate words.**\n\nWe are against the spread of pornography and harmful content.",
         warning_strike: "⚠️ **Warning!** ({count}/3)\nPlease use the bot for its intended purpose. Otherwise, you will be banned.",
-        user_blocked: "🚫 **You have been blocked.**\nAccess is restricted due to violation of bot usage rules."
+        user_blocked: "🚫 **You have been blocked.**\nAccess is restricted due to violation of bot usage rules.",
+
+        menu_share: "📣 Share Bot",
+        share_text: "🚀 **Tez Bot** - The fastest YouTube and Music downloader bot!\n\nYou can find the bot here: @{username}",
+        btn_share: "📲 Share"
     }
 };
 

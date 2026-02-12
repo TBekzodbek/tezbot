@@ -62,6 +62,8 @@ const STATES = {
 
 // Graceful Shutdown Handler
 let globalBot = null;
+let botUsername = 'tez_bbot'; // Default fallback
+
 
 async function shutdown(signal) {
     console.log(`\n🛑 [ID: ${INSTANCE_ID}] ${signal} qabul qilindi. Bot yopilmoqda...`);
@@ -109,7 +111,8 @@ function startBot() {
     });
 
     bot.getMe().then((me) => {
-        console.log(`✅ [ID: ${INSTANCE_ID}] Bot muvaffaqiyatli ulandi! Username: @${me.username}`);
+        botUsername = me.username;
+        console.log(`✅ [ID: ${INSTANCE_ID}] Bot muvaffaqiyatli ulandi! Username: @${botUsername}`);
         console.log(`📡 [ID: ${INSTANCE_ID}] Polling boshlandi...`);
 
         // Notify Admin on startup
@@ -146,7 +149,7 @@ function startBot() {
         reply_markup: {
             keyboard: [
                 [getText(lang, 'menu_lang')],
-                [{ text: "📣 Botni ulashish / Поделиться" }]
+                [{ text: getText(lang, 'menu_share') }]
             ],
             resize_keyboard: true
         }
@@ -254,12 +257,14 @@ function startBot() {
             return;
         }
 
-        if (text.includes("Botni ulashish") || text.includes("Поделиться")) {
-            const shareText = "🚀 **Tez Bot** - Eng tezkor YouTube va Music yuklovchi bot!\n\nBotni bu yerda topishingiz mumkin: @tez_bbot";
+        if (text.includes("Botni ulashish") || text.includes("Поделиться") || text.includes("Share Bot") || text.includes("Ботни улашиш")) {
+            const shareText = getText(lang, 'share_text').replace('{username}', botUsername);
+            const shareLink = `https://t.me/share/url?url=https://t.me/${botUsername}&text=${encodeURIComponent(getText(lang, 'share_text').replace('{username}', botUsername))}`;
+
             bot.sendMessage(chatId, shareText, {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                    inline_keyboard: [[{ text: "📲 Ulashish / Поделиться", url: "https://t.me/share/url?url=https://t.me/tez_bbot&text=Eng%20tezkor%20yuklovchi%20bot!" }]]
+                    inline_keyboard: [[{ text: getText(lang, 'btn_share'), url: shareLink }]]
                 }
             });
             return;
