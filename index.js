@@ -23,7 +23,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Initialize Bot
-const token = process.env.TELEGRAM_BOT_TOKEN;
+const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
 if (!token) {
     console.error('❌ ERROR: TELEGRAM_BOT_TOKEN is not defined!');
     console.error('ℹ️  Available Environment Variables (Keys only):', Object.keys(process.env).join(', '));
