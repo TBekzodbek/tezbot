@@ -31,14 +31,16 @@ if (!token) {
     process.exit(1);
 }
 
+// Singleton Instance ID
+const INSTANCE_ID = Math.floor(Math.random() * 8999) + 1000;
+
 // SINGLETON CHECK & SERVER
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const server = app.listen(PORT, () => {
     console.log(`TEZ BOT ishga tushdi (v2.0 - State Machine)... Port: ${PORT}`);
-    const INSTANCE_ID = Math.floor(Math.random() * 10000);
-    console.log(`🔒 INSTANCE ID: ${INSTANCE_ID} (Check if you see multiple different IDs in logs)`);
+    console.log(`🔒 INSTANCE ID: ${INSTANCE_ID}`);
     startBot();
 });
 
@@ -62,6 +64,12 @@ const STATES = {
 
 function startBot() {
     const bot = new TelegramBot(token, { polling: true });
+
+    // Clear Webhooks before starting polling
+    bot.deleteWebhook().then(() => {
+        console.log(`[ID: ${INSTANCE_ID}] Webhook cleared. Starting polling...`);
+    });
+
     const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
     fs.ensureDirSync(DOWNLOADS_DIR);
 
@@ -71,6 +79,11 @@ function startBot() {
     // Aliases to match existing code usage
     const setUserState = setState;
     const getUserState = getState;
+
+    const debugSend = (chatId, text, options = {}) => {
+        const debugText = `[ID: ${INSTANCE_ID}] ${text}`;
+        return bot.sendMessage(chatId, debugText, options);
+    };
 
     const getMainMenu = (lang) => ({
         reply_markup: {
@@ -96,10 +109,10 @@ function startBot() {
         setUserState(chatId, STATES.MAIN);
 
         // Send Welcome Message first
-        bot.sendMessage(chatId, "👋 **Welcome to Tez Bot!**\n\n🇺🇿 Xush kelibsiz!\n🇷🇺 Добро пожаловать!", { parse_mode: 'Markdown' })
+        debugSend(chatId, "👋 **Welcome to Tez Bot!**\n\n🇺🇿 Xush kelibsiz!\n🇷🇺 Добро пожаловать!", { parse_mode: 'Markdown' })
             .then(() => {
                 // Offer Language Selection
-                bot.sendMessage(chatId, "🇺🇿 Iltimos, tilni tanlang:\n🇺🇿 Илтимос, тилни танланг:\n🇷🇺 Пожалуйста, выберите язык:\n🇬🇧 Please select a language:", {
+                debugSend(chatId, "🇺🇿 Iltimos, tilni tanlang:\n🇺🇿 Илтимос, тилни танланг:\n🇷🇺 Пожалуйста, выберите язык:\n🇬🇧 Please select a language:", {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Кирилл)", callback_data: 'lang_uz_cyrl' }],
@@ -124,10 +137,10 @@ function startBot() {
 
         if (targetId) {
             resetStrikes(parseInt(targetId));
-            bot.sendMessage(chatId, `✅ User ${targetId} unblocked.`);
+            debugSend(chatId, `✅ User ${targetId} unblocked.`);
             bot.sendMessage(targetId, "✅ **Siz blokdan chiqarildingiz.**\nQoidalarga rioya qiling.", { parse_mode: 'Markdown' }).catch(() => { });
         } else {
-            bot.sendMessage(chatId, "⚠️ Usage: /unblock <chatId>");
+            debugSend(chatId, "⚠️ Usage: /unblock <chatId>");
         }
     });
 
@@ -149,7 +162,7 @@ function startBot() {
         // --- GLOBAL COMMANDS ---
         // --- GLOBAL COMMANDS ---
         if (text === getText(lang, 'menu_lang')) {
-            bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
+            debugSend(chatId, "🇺🇿 Tilni tanlang:", {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Кирилл)", callback_data: 'lang_uz_cyrl' }],
@@ -163,7 +176,7 @@ function startBot() {
         // --- SMART HANDLING (MAIN STATE) ---
         // 1. Check if URL -> Video Download
         if (text.match(/https?:\/\//)) {
-            bot.sendMessage(chatId, getText(lang, 'downloading'));
+            debugSend(chatId, getText(lang, 'downloading'));
             processUrl(chatId, text, 'video');
             return;
         }
@@ -172,12 +185,12 @@ function startBot() {
         const safety = checkText(text);
         if (!safety.safe) {
             const strikeData = addStrike(chatId);
-            bot.sendMessage(chatId, getText(lang, 'warning_adult'));
-            bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
+            debugSend(chatId, getText(lang, 'warning_adult'));
+            debugSend(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
             return;
         }
 
-        bot.sendMessage(chatId, getText(lang, 'searching'), { disable_notification: true });
+        debugSend(chatId, getText(lang, 'searching'), { disable_notification: true });
 
         // Non-blocking search
         const searchQuery = `${text} audio`;
@@ -207,13 +220,13 @@ function startBot() {
                 searchKeyboard.push([{ text: `${index + 1}. ${title}${durationStr}`, callback_data: `sel_${videoId}` }]);
             });
 
-            bot.sendMessage(chatId, `🎶 **Natijalar:**`, {
+            debugSend(chatId, `🎶 **Natijalar:**`, {
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: searchKeyboard }
             });
         }).catch(err => {
             console.error(err);
-            bot.sendMessage(chatId, getText(lang, 'error'), getMainMenu(lang));
+            debugSend(chatId, getText(lang, 'error'), getMainMenu(lang));
         });
     });
 
@@ -275,14 +288,14 @@ function startBot() {
             for (let i = 0; i < buttons.length; i += 2) keyboard.push(buttons.slice(i, i + 2));
             const lang = getLang(chatId);
 
-            bot.sendMessage(chatId, getText(lang, 'select_quality'), {
+            debugSend(chatId, getText(lang, 'select_quality'), {
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: keyboard }
             });
         } catch (error) {
             console.error(error);
             const lang = getLang(chatId);
-            bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
+            debugSend(chatId, getText(lang, 'error'), getBackMenu(lang));
         }
     }
 
@@ -302,7 +315,7 @@ function startBot() {
         if (data.startsWith('lang_')) {
             const selectedLang = data.replace('lang_', '');
             setLang(chatId, selectedLang);
-            bot.sendMessage(chatId, getText(selectedLang, 'welcome'), {
+            debugSend(chatId, getText(selectedLang, 'welcome'), {
                 parse_mode: 'Markdown',
                 ...getMainMenu(selectedLang)
             });
@@ -322,14 +335,8 @@ function startBot() {
             // Auto-download Audio for music search
             handleDownload(chatId, videoUrl, 'audio', { outputPath: 'temp' })
                 .then(() => {
-                    // Send "Done" menu
-                    bot.sendMessage(chatId, getText(lang, 'done'), {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: getText(lang, 'search_again'), callback_data: 'reset_music' }],
-                            ]
-                        }
-                    });
+                    // handleDownload now sends the 'done' message with appropriate menu
+                    // No additional Done message needed here
                 })
                 .finally(() => {
                     stopAction(); // Stop the action loop
@@ -340,7 +347,7 @@ function startBot() {
         // --- RESET MUSIC ---
         if (data === 'reset_music') {
             setUserState(chatId, STATES.WAITING_MUSIC);
-            bot.sendMessage(chatId, getText(lang, 'prompt_music'), getBackMenu(lang));
+            debugSend(chatId, getText(lang, 'prompt_music'), getBackMenu(lang));
             return;
         }
 
@@ -350,7 +357,7 @@ function startBot() {
 
             // Inject into search flow
             setUserState(chatId, STATES.WAITING_MUSIC);
-            bot.sendMessage(chatId, getText(lang, 'searching'));
+            debugSend(chatId, getText(lang, 'searching'));
 
             const stopAction = sendActionLoop(chatId, 'typing'); // Search might take a moment
 
@@ -358,7 +365,7 @@ function startBot() {
             searchMusic(queryText, 5).then(output => {
                 const entries = output.entries || (Array.isArray(output) ? output : [output]);
                 if (!entries || entries.length === 0) {
-                    bot.sendMessage(chatId, getText(lang, 'not_found'), getBackMenu(lang));
+                    debugSend(chatId, getText(lang, 'not_found'), getBackMenu(lang));
                     return;
                 }
                 const searchKeyboard = [];
@@ -373,7 +380,7 @@ function startBot() {
                     }
                     searchKeyboard.push([{ text: `${index + 1}. ${entry.title.substring(0, 50)}${durationStr}`, callback_data: `sel_${entry.id}` }]);
                 });
-                bot.sendMessage(chatId, `🎶 **Natijalar:**`, { reply_markup: { inline_keyboard: searchKeyboard } });
+                debugSend(chatId, `🎶 **Natijalar:**`, { reply_markup: { inline_keyboard: searchKeyboard } });
             }).finally(() => stopAction());
             return;
         }
@@ -390,7 +397,7 @@ function startBot() {
         const safeTitle = cleanFilename(title);
 
         bot.deleteMessage(chatId, query.message.message_id);
-        bot.sendMessage(chatId, getText(lang, 'downloading'));
+        debugSend(chatId, getText(lang, 'downloading'));
 
         // Determine options
         let type = 'video';
@@ -425,7 +432,7 @@ function startBot() {
             const sizeMB = stats.size / (1024 * 1024);
 
             if (sizeMB > 49.5) {
-                bot.sendMessage(chatId, getText(lang, 'file_too_large'));
+                debugSend(chatId, getText(lang, 'file_too_large'));
                 fs.remove(filePath);
                 return;
             }
@@ -436,20 +443,20 @@ function startBot() {
                 await bot.sendAudio(chatId, filePath, {
                     title: title,
                     performer: '@tez_bbot',
-                    caption: '🎧 @tez_bbot'
+                    caption: `🎧 @tez_bbot [ID: ${INSTANCE_ID}]`
                 });
             } else {
-                await bot.sendVideo(chatId, filePath, { caption: `${title}\n\n🤖 @tez_bbot`, supports_streaming: true });
+                await bot.sendVideo(chatId, filePath, { caption: `${title}\n\n🤖 @tez_bbot [ID: ${INSTANCE_ID}]`, supports_streaming: true });
             }
 
             await fs.remove(filePath);
 
             // After download, show Home button
-            bot.sendMessage(chatId, getText(lang, 'done'), getBackMenu(lang));
+            debugSend(chatId, getText(lang, 'done'), getBackMenu(lang));
 
         } catch (error) {
             console.error('Download Error:', error);
-            bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
+            debugSend(chatId, getText(lang, 'error'), getBackMenu(lang));
         }
     }
 
@@ -463,7 +470,7 @@ function startBot() {
         const fileId = msg.voice ? msg.voice.file_id : msg.audio.file_id;
 
         bot.sendChatAction(chatId, 'record_voice');
-        const statusMsg = await bot.sendMessage(chatId, getText(lang, 'searching'));
+        const statusMsg = await debugSend(chatId, getText(lang, 'searching'));
 
         try {
             const fileLink = await bot.getFileLink(fileId);
@@ -476,19 +483,19 @@ function startBot() {
                 const { title, artist, album, year } = track;
                 const caption = `${getText(lang, 'shazam_found')}\n\n**${getText(lang, 'label_artist')}:** ${artist}\n**${getText(lang, 'label_title')}:** ${title}\n**${getText(lang, 'label_album')}:** ${album || '-'}\n**${getText(lang, 'label_year')}:** ${year || '-'}`;
 
-                await bot.sendMessage(chatId, caption, {
+                await debugSend(chatId, caption, {
                     parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [[{ text: '📥 Yuklab olish', callback_data: `search_${artist} - ${title}`.substring(0, 64) }]]
                     }
                 });
             } else {
-                bot.sendMessage(chatId, getText(lang, 'shazam_not_found'), getBackMenu(lang));
+                debugSend(chatId, getText(lang, 'shazam_not_found'), getBackMenu(lang));
             }
         } catch (error) {
             console.error('Shazam Error:', error);
             await bot.deleteMessage(chatId, statusMsg.message_id);
-            bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
+            debugSend(chatId, getText(lang, 'error'), getBackMenu(lang));
         }
     }
 }
