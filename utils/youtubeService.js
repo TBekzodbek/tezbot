@@ -37,6 +37,63 @@ async function searchVideo(query, limit = 5) {
     }
 }
 
+async function searchMusic(query, limit = 5) {
+    // 1. Fetch more results to allow filtering
+    // We fetch 3x the limit to have a buffer for rejected items
+    const fetchLimit = limit * 3;
+    const cacheKey = `searchMusic:${query}:${limit}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        console.log('✅ Serving music search from cache:', query);
+        return cached;
+    }
+
+    try {
+        const output = await youtubedl(`ytsearch${fetchLimit}:${query}`, {
+            dumpSingleJson: true,
+            noWarnings: true,
+            preferFreeFormats: true,
+            flatPlaylist: true,
+            ffmpegLocation: FFMPEG_LOCATION,
+            forceIpv4: true
+        }, {
+            youtubeDlBinary: YOUTUBE_DL_BINARY
+        });
+
+        const allEntries = output.entries || [];
+
+        // 2. Filter Results
+        const filteredEntries = allEntries.filter(entry => {
+            const title = (entry.title || '').toLowerCase();
+            const duration = entry.duration || 0;
+
+            // Rule 1: Duration 0s - 20 mins (1200s)
+            // Rejects extreme long mixes (>20m) but allows normal songs/extended cuts
+            if (duration > 1200) return false;
+
+            // Rule 2: Negative Keywords
+            // Rejects extraneous content
+            const negativeKeywords = ['reaction', 'review', 'hour loop', '1 hour', '10 hours', 'tushuntirish', 'teoriyasi'];
+            if (negativeKeywords.some(kw => title.includes(kw))) return false;
+
+            return true;
+        });
+
+        // 3. Take top N
+        const finalEntries = filteredEntries.slice(0, limit);
+
+        // Wrap in same structure as searchVideo
+        const result = { ...output, entries: finalEntries };
+
+        // Cache result
+        cache.set(cacheKey, result);
+        return result;
+
+    } catch (e) {
+        throw new Error(`Music Search failed: ${e.message}`);
+    }
+}
+
 async function getVideoTitle(url) {
     const cacheKey = `title:${url}`;
     const cached = cache.get(cacheKey);
@@ -84,8 +141,8 @@ async function getVideoInfo(url, retries = 2) {
                 youtubeSkipDashManifest: true,
                 ffmpegLocation: FFMPEG_LOCATION,
                 forceIpv4: true, // Already present
-                concurrentFragments: 8, // Added
-                httpChunkSize: '10M' // Added
+                concurrentFragments: 16, // Increased for speed
+                httpChunkSize: '10M' // Optimize chunk size
             }, {
                 youtubeDlBinary: YOUTUBE_DL_BINARY
             });
@@ -114,7 +171,8 @@ async function downloadMedia(url, type, options = {}) {
         noColors: true,
         noProgress: true,
         // Performance flags
-        concurrentFragments: 4, // Download in 4 parts
+        concurrentFragments: 16, // Download in 16 parts for speed
+        httpChunkSize: '10M',   // larger chunks
         resizeBuffer: true,     // Optimize buffer
     };
 
@@ -126,8 +184,10 @@ async function downloadMedia(url, type, options = {}) {
             embedThumbnail: true,
         });
     } else if (type === 'video') {
+        // Optimization: Prefer pre-merged best file first (no ffmpeg merge needed = faster)
+        // Fallback to merge if pre-merged not available or quality check fails
         const formatSelect = height
-            ? `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${height}][ext=mp4]/best[height<=${height}]`
+            ? `best[height=${height}][ext=mp4]/bestvideo[height=${height}][ext=mp4]+bestaudio[ext=m4a]/best[height=${height}]`
             : 'best[ext=mp4]/best';
 
         Object.assign(flags, {
@@ -220,5 +280,7 @@ module.exports = {
     searchVideo,
     getVideoInfo,
     getVideoTitle,
-    downloadMedia
+    getVideoTitle,
+    downloadMedia,
+    searchMusic
 };

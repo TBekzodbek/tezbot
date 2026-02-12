@@ -17,6 +17,7 @@ const TEXTS = {
         downloading: "⏳ Yuklanmoqda... Bir oz kuting.",
         uploading_video: "📤 Video yuklanmoqda...",
         uploading_audio: "📤 Audio yuklanmoqda...",
+        processing: "⏳ Yuklanmoqda...",
 
         not_found: "❌ Hech narsa topilmadi. Boshqa nom bilan urinib ko'ring.",
         error: "❌ Xatolik yuz berdi.",
@@ -55,6 +56,7 @@ const TEXTS = {
         downloading: "⏳ Юкланмоқда... Бир оз кутинг.",
         uploading_video: "📤 Видео юкланмоқда...",
         uploading_audio: "📤 Аудио юкланмоқда...",
+        processing: "⏳ Юкланмоқда...",
 
         not_found: "❌ Ҳеч нарса топилмади. Бошқа ном билан уриниб кўринг.",
         error: "❌ Хатолик юз берди.",
@@ -88,6 +90,7 @@ const TEXTS = {
         downloading: "⏳ Загрузка... Пожалуйста, подождите.",
         uploading_video: "📤 Отправка видео...",
         uploading_audio: "📤 Отправка аудио...",
+        processing: "⏳ Обработка...",
 
         not_found: "❌ Ничего не найдено. Попробуйте другое название.",
         error: "❌ Произошла ошибка.",
@@ -121,6 +124,7 @@ const TEXTS = {
         downloading: "⏳ Downloading... Please wait.",
         uploading_video: "📤 Uploading video...",
         uploading_audio: "📤 Uploading audio...",
+        processing: "⏳ Processing...",
 
         not_found: "❌ Nothing found. Try another name.",
         error: "❌ An error occurred.",

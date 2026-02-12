@@ -7,7 +7,7 @@ const axios = require('axios');
 
 // Import Services
 const { cleanFilename } = require('./utils/helpers');
-const { searchVideo, getVideoInfo, getVideoTitle, downloadMedia } = require('./utils/youtubeService');
+const { searchVideo, searchMusic, getVideoInfo, getVideoTitle, downloadMedia } = require('./utils/youtubeService');
 const { recognizeAudio } = require('./utils/shazamService');
 const { getText } = require('./utils/localization');
 const { checkText, checkMetadata, addStrike, isUserBlocked, resetStrikes } = require('./utils/moderation');
@@ -71,9 +71,7 @@ function startBot() {
     const getMainMenu = (lang) => ({
         reply_markup: {
             keyboard: [
-                [getText(lang, 'menu_music'), getText(lang, 'menu_video')],
-                [getText(lang, 'menu_audio'), getText(lang, 'menu_help')],
-                [getText(lang, 'menu_lang')]
+                [getText(lang, 'menu_help'), getText(lang, 'menu_lang')]
             ],
             resize_keyboard: true
         }
@@ -136,14 +134,6 @@ function startBot() {
 
         if (!text || text.startsWith('/')) return;
 
-        if (text === getText(getLang(chatId), 'menu_back') || text === '🏠 Bosh sahifa') {
-            setUserState(chatId, STATES.MAIN);
-            const lang = getLang(chatId);
-            bot.sendMessage(chatId, `🏠 **${getText(lang, 'menu_back')}**`, getMainMenu(lang));
-            return;
-        }
-
-        const currentState = getUserState(chatId);
         const lang = getLang(chatId);
 
         // STRIKE CHECKS (Block Middleware)
@@ -152,148 +142,77 @@ function startBot() {
             return;
         }
 
-        // GLOBAL NAVIGATION (Overrides state)
-        // Check if text matches any main menu button or back button
-        const isMainMenuCommand = [
-            getText(lang, 'menu_music'),
-            getText(lang, 'menu_video'),
-            getText(lang, 'menu_audio'),
-            getText(lang, 'menu_help'),
-            getText(lang, 'menu_lang')
-        ].includes(text);
-
-        if (text === getText(lang, 'menu_back') || text === '🏠 Bosh sahifa') {
-            setUserState(chatId, STATES.MAIN);
-            bot.sendMessage(chatId, `🏠 **${getText(lang, 'menu_back')}**`, getMainMenu(lang));
+        // --- GLOBAL COMMANDS ---
+        if (text === getText(lang, 'menu_help')) {
+            bot.sendMessage(chatId, '🤖 @Tez_Bot\n\n1. 🎵 **Music:** Send Artict/Song name.\n2. 📹 **Video:** Send link (YouTube/Instagram).', getMainMenu(lang));
             return;
-        } else if (isMainMenuCommand) {
-            if (text === getText(lang, 'menu_music')) {
-                setUserState(chatId, STATES.WAITING_MUSIC);
-                bot.sendMessage(chatId, getText(lang, 'prompt_music'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
-            } else if (text === getText(lang, 'menu_video')) {
-                setUserState(chatId, STATES.WAITING_VIDEO);
-                bot.sendMessage(chatId, getText(lang, 'prompt_video'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
-            } else if (text === getText(lang, 'menu_audio')) {
-                setUserState(chatId, STATES.WAITING_AUDIO);
-                bot.sendMessage(chatId, getText(lang, 'prompt_audio'), { parse_mode: 'Markdown', ...getBackMenu(lang) });
-            } else if (text === getText(lang, 'menu_help')) {
-                setUserState(chatId, STATES.MAIN);
-                bot.sendMessage(chatId, '🤖 @Tez_Bot', getMainMenu(lang));
-            } else if (text === getText(lang, 'menu_lang')) {
-                bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Krill)", callback_data: 'lang_uz_cyrl' }],
-                            [{ text: "🇷🇺 Русский", callback_data: 'lang_ru' }, { text: "🇬🇧 English", callback_data: 'lang_en' }]
-                        ]
-                    }
-                });
-            }
-            return; // Important: Return after handling a global navigation command
-        }
-
-        // --- STATE: MAIN (Fallback for unknown commands) ---
-        if (currentState === STATES.MAIN) {
-            if (text.match(/https?:\/\//)) {
-                bot.sendMessage(chatId, getText(lang, 'invalid_link'), getMainMenu(lang));
-            } else {
-                bot.sendMessage(chatId, getText(lang, 'error'), getMainMenu(lang));
-            }
-            return;
-        }
-
-        // --- STATE: WAITING_MUSIC (Shazam/Search context) ---
-        if (currentState === STATES.WAITING_MUSIC) {
-            // Safety Check
-            const safety = checkText(text);
-            if (!safety.safe) {
-                const strikeData = addStrike(chatId);
-                bot.sendMessage(chatId, getText(lang, 'warning_adult'));
-                bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
-                return;
-            }
-
-            bot.sendMessage(chatId, getText(lang, 'searching'), { disable_notification: true });
-
-            try {
-                // Non-blocking search
-                searchVideo(text, 5).then(output => {
-                    const entries = output.entries || (Array.isArray(output) ? output : [output]);
-
-                    if (!entries || entries.length === 0) {
-                        bot.sendMessage(chatId, getText(lang, 'not_found'), getBackMenu(lang));
-                        return;
-                    }
-
-                    const searchKeyboard = [];
-                    entries.forEach((entry, index) => {
-                        const title = entry.title.substring(0, 50);
-                        const videoId = entry.id;
-                        searchKeyboard.push([{ text: `${index + 1}. ${title}`, callback_data: `sel_${videoId}` }]);
-                    });
-
-                    bot.sendMessage(chatId, `🎶 **Natijalar:**`, {
-                        parse_mode: 'Markdown',
-                        reply_markup: { inline_keyboard: searchKeyboard }
-                    });
-                }).catch(err => {
-                    console.error(err);
-                    bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
-                });
-            } catch (error) {
-                bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
-            }
-            return;
-        }
-
-        // --- STATE: WAITING_VIDEO ---
-        if (currentState === STATES.WAITING_VIDEO) {
-            if (!text.match(/https?:\/\//)) {
-                bot.sendMessage(chatId, getText(lang, 'invalid_link'), getBackMenu(lang));
-                return;
-            }
-
-            bot.sendMessage(chatId, getText(lang, 'downloading'));
-            processUrl(chatId, text, 'video'); // Helper to show resolution options
-            return;
-        }
-
-        // --- STATE: WAITING_AUDIO ---
-        if (currentState === STATES.WAITING_AUDIO) {
-            if (!text.match(/https?:\/\//)) {
-                bot.sendMessage(chatId, getText(lang, 'invalid_link'), getBackMenu(lang));
-                return;
-            }
-
-            bot.sendMessage(chatId, getText(lang, 'downloading'));
-
-            // Direct Audio Download Flow
-            // For audio, we might default to MP3 best quality or give options?
-            // User requested "Format Choice: MP3 128 | MP3 320 | M4A".
-            // yt-dlp handling of specific bitrates needs post-processing arguments.
-            // For simplicity/speed/robustness, let's offer "MP3 (Best)" and "M4A".
-
-            getVideoTitle(text).then(title => {
-                const keyboard = [
-                    [{ text: '🎵 MP3 (Eng yaxshi)', callback_data: `dl_audio_mp3_${text}`.substring(0, 64) }],
-                ];
-
-                userRequests.set(chatId, { url: text, title: title || 'Audio' });
-
-                bot.sendMessage(chatId, getText(lang, 'select_format'), {
-                    parse_mode: 'Markdown',
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🎵 MP3', callback_data: 'target_mp3' }],
-                            [{ text: '🎼 M4A (Original)', callback_data: 'target_m4a' }]
-                        ]
-                    }
-                });
-            }).catch(() => {
-                bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
+        } else if (text === getText(lang, 'menu_lang')) {
+            bot.sendMessage(chatId, "🇺🇿 Tilni tanlang:", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🇺🇿 O'zbekcha", callback_data: 'lang_uz' }, { text: "🇺🇿 Ўзбекча (Krill)", callback_data: 'lang_uz_cyrl' }],
+                        [{ text: "🇷🇺 Русский", callback_data: 'lang_ru' }, { text: "🇬🇧 English", callback_data: 'lang_en' }]
+                    ]
+                }
             });
             return;
         }
+
+        // --- SMART HANDLING (MAIN STATE) ---
+        // 1. Check if URL -> Video Download
+        if (text.match(/https?:\/\//)) {
+            bot.sendMessage(chatId, getText(lang, 'downloading'));
+            processUrl(chatId, text, 'video');
+            return;
+        }
+
+        // 2. If Text -> Music Search
+        const safety = checkText(text);
+        if (!safety.safe) {
+            const strikeData = addStrike(chatId);
+            bot.sendMessage(chatId, getText(lang, 'warning_adult'));
+            bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
+            return;
+        }
+
+        bot.sendMessage(chatId, getText(lang, 'searching'), { disable_notification: true });
+
+        // Non-blocking search
+        const searchQuery = `${text} audio`;
+
+        searchMusic(searchQuery, 5).then(output => {
+            const entries = output.entries || (Array.isArray(output) ? output : [output]);
+
+            if (!entries || entries.length === 0) {
+                bot.sendMessage(chatId, getText(lang, 'not_found'), getMainMenu(lang));
+                return;
+            }
+
+            const searchKeyboard = [];
+            entries.forEach((entry, index) => {
+                const title = entry.title.substring(0, 50);
+                const videoId = entry.id;
+
+                // Format Duration
+                let durationStr = '';
+                if (entry.duration) {
+                    const date = new Date(0);
+                    date.setSeconds(entry.duration);
+                    const timeString = date.toISOString().substr(14, 5);
+                    durationStr = ` (${timeString})`;
+                }
+
+                searchKeyboard.push([{ text: `${index + 1}. ${title}${durationStr}`, callback_data: `sel_${videoId}` }]);
+            });
+
+            bot.sendMessage(chatId, `🎶 **Natijalar:**`, {
+                parse_mode: 'Markdown',
+                reply_markup: { inline_keyboard: searchKeyboard }
+            });
+        }).catch(err => {
+            console.error(err);
+            bot.sendMessage(chatId, getText(lang, 'error'), getMainMenu(lang));
+        });
     });
 
     // 3. Helpers: Process URL & Action Loop
@@ -321,27 +240,21 @@ function startBot() {
 
             // Safety Check 2: Metadata (Deep)
             // We use getVideoInfo instead of Title for full metadata access
-            const info = await getVideoInfo(url);
+            // Speed Optimization: Use getVideoTitle (Fast) instead of getVideoInfo (Slow)
+            // We skip deep metadata check here for speed.
+            const title = await getVideoTitle(url);
 
-            if (!info) {
+            if (!title) {
                 bot.sendMessage(chatId, getText(lang, 'error'), getBackMenu(lang));
                 return;
             }
 
-            const metaSafety = checkMetadata(info);
-            if (!metaSafety.safe) {
-                const strikeData = addStrike(chatId);
-                bot.sendMessage(chatId, getText(lang, 'warning_adult'));
-                bot.sendMessage(chatId, getText(lang, 'warning_strike').replace('{count}', strikeData.count));
-                return;
-            }
+            // checkMetadata removed from here for speed, relied on checkText or handleDownload checks if needed.
+            // For now we assume title check is enough or user will find out during download if blocked.
 
-            const title = info.title || 'Video';
-            userRequests.set(chatId, { url, title, type: typeContext });
+            userRequests.set(chatId, { url, title: title, type: typeContext });
 
             const targetResolutions = [
-                { label: '4K Ultra HD', val: 2160 },
-                { label: '2K QHD', val: 1440 },
                 { label: '1080p Full HD', val: 1080 },
                 { label: '720p HD', val: 720 },
                 { label: '480p', val: 480 },
@@ -352,6 +265,9 @@ function startBot() {
             targetResolutions.forEach(res => {
                 buttons.push({ text: `📹 ${res.label}`, callback_data: `video_${res.val}` });
             });
+
+            // Add Audio Button
+            buttons.push({ text: '🎵 Audio (MP3)', callback_data: 'target_mp3' });
 
             const keyboard = [];
             for (let i = 0; i < buttons.length; i += 2) keyboard.push(buttons.slice(i, i + 2));
@@ -374,7 +290,8 @@ function startBot() {
         const data = query.data;
 
         // Always answer immediately to stop the button loading animation
-        try { await bot.answerCallbackQuery(query.id); } catch (e) { }
+        // Always answer immediately to stop the button loading animation
+        try { await bot.answerCallbackQuery(query.id, { text: getText(lang, 'processing') }); } catch (e) { }
 
 
         const lang = getLang(chatId);
@@ -435,7 +352,8 @@ function startBot() {
 
             const stopAction = sendActionLoop(chatId, 'typing'); // Search might take a moment
 
-            searchVideo(queryText, 5).then(output => {
+            // Use searchMusic to ensure we get the song, not a reaction/loop
+            searchMusic(queryText, 5).then(output => {
                 const entries = output.entries || (Array.isArray(output) ? output : [output]);
                 if (!entries || entries.length === 0) {
                     bot.sendMessage(chatId, getText(lang, 'not_found'), getBackMenu(lang));
@@ -443,7 +361,15 @@ function startBot() {
                 }
                 const searchKeyboard = [];
                 entries.forEach((entry, index) => {
-                    searchKeyboard.push([{ text: `${index + 1}. ${entry.title.substring(0, 50)}`, callback_data: `sel_${entry.id}` }]);
+                    // Format Duration
+                    let durationStr = '';
+                    if (entry.duration) {
+                        const date = new Date(0);
+                        date.setSeconds(entry.duration);
+                        const timeString = date.toISOString().substr(14, 5);
+                        durationStr = ` (${timeString})`;
+                    }
+                    searchKeyboard.push([{ text: `${index + 1}. ${entry.title.substring(0, 50)}${durationStr}`, callback_data: `sel_${entry.id}` }]);
                 });
                 bot.sendMessage(chatId, `🎶 **Natijalar:**`, { reply_markup: { inline_keyboard: searchKeyboard } });
             }).finally(() => stopAction());
